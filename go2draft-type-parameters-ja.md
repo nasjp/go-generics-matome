@@ -1,4 +1,4 @@
-# Type Parameters - Draft Design
+# 型パラメータ - ドラフトデザイン
 
 イアン・ランス・テイラー\
 ロバート・グリセマー\
@@ -48,7 +48,7 @@ Go言語を拡張して、型や関数にオプションの型パラメータを
 このバージョンのデザインドラフトは、2019年7月31日に発表されたものと多くの類似点がありますが、制約は削除され、インターフェース型に置き換えられています。
 
 Goには、これまでにも多くの[ジェネリクスプログラミングの追加サポートの要望](https://github.com/golang/go/wiki/ExperienceReports#generics)がありました。
-[issue tracker] (https://golang.org/issue/15292) や [a living document] (https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/view) で広範囲の議論が行われています。
+[issue tracker](https://golang.org/issue/15292) や [a living document](https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/view) で広範囲の議論が行われています。
 
 型のパラメータを追加するための提案がいくつかありますが、それらは上記のリンクから見つけることができます。
 ここで紹介されているアイデアの多くは、以前にも登場しています。
@@ -86,16 +86,9 @@ func Print(s []T) { // ただの例であって、提案された構文ではあ
 }
 ```
 
-With this approach, the first decision to make is: how should the type parameter `T` be declared?
-In a language like Go, we expect every identifier to be declared in some way.
 このアプローチでは、最初に決定すべきことは、型パラメータ `T` をどのように宣言すべきかということです。
 Goのような言語では、すべての識別子が何らかの方法で宣言されることを期待しています。
 
-Here we make a design decision: type parameters are similar to ordinary non-type function parameters, and as such should be listed along with other parameters.
-However, type parameters are not the same as non-type parameters, so although they appear in the list of parameters we want to distinguish them.
-That leads to our next design decision: we define an additional, optional, parameter list, describing type parameters.
-This parameter list appears before the regular parameters.
-It starts with the keyword `type`, and lists type parameters.
 ここで設計上の決定をします。型パラメータは通常の非型関数パラメータと似ているので、他のパラメータと一緒にリストアップします。
 しかし、型パラメータは非型パラメータと同じではないので、パラメータのリストには表示されますが、区別したいのです。
 これが次の設計上の決定につながります。型パラメータを記述する追加のオプションのパラメータリストを定義します。
