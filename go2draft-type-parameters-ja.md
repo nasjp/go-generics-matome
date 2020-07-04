@@ -1,329 +1,238 @@
 # Type Parameters - Draft Design
 
-Ian Lance Taylor\
-Robert Griesemer\
-June 16, 2020
+イアン・ランス・テイラー\
+ロバート・グリセマー\
+2020/6/16
 
-## Abstract
+## 要旨
 
-We suggest extending the Go language to add optional type parameters
-to types and functions.
-Type parameters may be constrained by interface types.
-We also suggest extending interface types, when used as type
-constraints, to permit listing the set of types that may be assigned
-to them.
-Type inference via a unification algorithm is supported to permit
-omitting type arguments from function calls in many cases.
-The design is fully backward compatible with Go 1.
+Go言語を拡張して、型や関数にオプションの型パラメータを追加することを提案します。
+型パラメータはインターフェイス型によって制約されることがあります。
+また、型制約として使用される場合には、interface型を拡張して、それらに割り当てられる可能性のある型のセットをリストアップできるようにすることを提案します。
+多くの場合、関数呼び出しから型引数を省略できるように、統一アルゴリズムによる型推論がサポートされています。
+この設計はGo 1と完全に下位互換性があります。
 
-## How to read this design draft
+## ドラフトデザインの読み方
 
-This document is long.
-Here is some guidance on how to read it.
+この資料は長いです。
+読み方のガイダンスをご紹介します。
 
-* We start with a high level overview, describing the concepts very
-  briefly.
-* We then explain the full design starting from scratch, introducing
-  the details as we need them, with simple examples.
-* After the design is completely described, we discuss implementation,
-  some issues with the design, and a comparison with other approaches
-  to generics.
-* We then present several complete examples of how this design would
-  be used in practice.
-* Following the examples some minor details are discussed in an
-  appendix.
+* 最初にハイレベルの概要を説明し、概念を非常に簡単に説明します。
+* その後、ゼロから始める完全な設計を説明し、必要に応じて詳細を簡単な例を用いて紹介します。
+* デザインが完全に説明された後、実装、デザインのいくつかの問題点、そしてジェネリクスへの他のアプローチとの比較について議論します。
+* このデザインが実際にどのように使われるのか、いくつかの完全な例を紹介します。
+* 例に続いて、いくつかの細かい詳細は付録で議論されています。
 
-## Very high level overview
+## 非常にハイレベルの概要
 
-This section explains the changes suggested by the design draft very
-briefly.
-This section is intended for people who are already familiar with how
-generics would work in a language like Go.
-These concepts will be explained in detail in the following sections.
+このセクションでは、ドラフトデザインで提案された変更点を非常に簡単に説明します。
+このセクションは、Goのような言語でジェネリクスがどのように機能するのかをすでに知っている方を対象としています。
+これらの概念については、次のセクションで詳しく説明します。
 
-* Functions can have an additional type parameter list introduced by
-  the keyword `type`: `func F(type T)(p T) { ... }`.
-* These type parameters can be used by the regular parameters and in
-  the function body.
-* Types can also have a type parameter list: `type M(type T) []T`.
-* Each type parameter can have an optional type constraint: `func
-  F(type T Constraint)(p T) { ... }`
-* Type constraints are interface types.
-* Interface types used as type constraints can have a list of
-  predeclared types; only types whose underlying type is one of those
-  types can implement the interface.
-* Using a generic function or type requires passing type arguments.
-* Type inference permits omitting the type arguments in common cases.
-* If a type parameter has a type constraint its type argument must
-  implement the interface.
-* Generic functions may only use operations permitted by the type
-  constraint.
+* 関数は、キーワード`type`で導入される追加の型パラメータリストを持つことができます: `func F(type T)(p T) { ... }`.
+* これらの型のパラメータは、通常のパラメータと関数本体で使用することができます。
+* 型は型のパラメータリストを持つこともできます。`type M(type T) []T`.
+* 各型パラメータはオプションの型制約を持つことができます： `func F(type T Constraint)(p T) { ... }`
+* タイプ制約はインターフェイスタイプです。
+* 型制約として使用されるインターフェイス型は、事前に宣言された型のリストを持つことができます。
+* 一般的な関数や型を使用する場合は、型の引数を渡す必要があります。
+* 型推論では、一般的なケースでは型引数を省略することができます。
+* 型パラメータに型制約がある場合、その型の引数はインターフェイスを実装しなければなりません。
+* ジェネリクス関数は、型制約で許可された操作のみを使用することができます。
 
-In the following sections we work through each of these language
-changes in great detail.
-You may prefer to skip ahead to the [examples](#Examples) to see what
-generic code written to this design draft will look like in practice.
+以下のセクションでは、これらの言語の変更点を詳細に説明します。
+このデザインドラフトで書かれた一般的なコードが実際にどのように見えるかを見るために、[例](#例)へ進むことを好むかもしれません。
 
-## Background
+## 背景
 
-This version of the design draft has many similarities to the one
-presented on July 31, 2019, but contracts have been removed and
-replaced by interface types.
+このバージョンのデザインドラフトは、2019年7月31日に発表されたものと多くの類似点がありますが、制約は削除され、インターフェース型に置き換えられています。
 
-There have been many [requests to add additional support for generic
-programming](https://github.com/golang/go/wiki/ExperienceReports#generics)
-in Go.
-There has been extensive discussion on
-[the issue tracker](https://golang.org/issue/15292) and on
-[a living document](https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/view).
+Goには、これまでにも多くの[ジェネリクスプログラミングの追加サポートの要望](https://github.com/golang/go/wiki/ExperienceReports#generics)がありました。
+[issue tracker] (https://golang.org/issue/15292) や [a living document] (https://docs.google.com/document/d/1vrAy9gMpMoS3uaVphB32uVXX4pi-HnNjkMEgyAHX4N4/view) で広範囲の議論が行われています。
 
-There have been several proposals for adding type parameters, which
-can be found through the links above.
-Many of the ideas presented here have appeared before.
-The main new features described here are the syntax and the careful
-examination of interface types as constraints.
+型のパラメータを追加するための提案がいくつかありますが、それらは上記のリンクから見つけることができます。
+ここで紹介されているアイデアの多くは、以前にも登場しています。
+ここで説明されている主な新機能は、シンタックスと、制約としてのインタフェース型の精査です。
 
-This design draft suggests extending the Go language to add a form of
-parametric polymorphism, where the type parameters are bounded not by
-a declared subtyping relationship (as in some object oriented
-languages) but by explicitly defined structural constraints.
+このデザインドラフトは、Go言語を拡張してパラメトリックなポリフォーリズムを追加することを提案しています。
+ここでは、型パラメータは（いくつかのオブジェクト指向言語のように）宣言されたサブタイプ関係ではなく、明示的に定義された構造制約によって拘束されます。
 
-This design does not support template metaprogramming or any other
-form of compile time programming.
+このデザインは、テンプレートのメタプログラミングや他の形式のコンパイル時プログラミングをサポートしていません。
 
-As the term _generic_ is widely used in the Go community, we will
-use it below as a shorthand to mean a function or type that takes type
-parameters.
-Don't confuse the term generic as used in this design with the same
-term in other languages like C++, C#, Java, or Rust; they have
-similarities but are not the same.
+Goコミュニティでは _ジェネリクス(generic)_ という用語が広く使われているので、以下では、型のパラメータを取る関数や型を意味する略語として使用します。
+このデザインで使用されているジェネリクスという用語を、C++、C#、Java、Rustなどの他の言語の同じ用語と混同しないでください。
 
-## Design
+## 設計
 
-We will describe the complete design in stages based on simple
-examples.
+完成した設計を簡単な事例をもとに段階的に記述していきます。
 
-### Type parameters
+### 型パラメータ
 
-Generic code is code that is written using types that will be
-specified later.
-An unspecified type is called a _type parameter_.
-When running the generic code, the type parameter will be set to a
-_type argument_.
+ジェネリクスコードとは、後に指定する型を使って書かれたコードのことです。
+不特定の型のことを_type parameter_と呼びます。
+ジェネリクスコードを実行すると、typeパラメータに_type argument_が設定されます。
 
-Here is a function that prints out each element of a slice, where the
-element type of the slice, here called `T`, is unknown.
-This is a trivial example of the kind of function we want to permit in
-order to support generic programming.
-(Later we'll also discuss [generic types](#Generic-types)).
+ここではスライスの各要素をプリントアウトする関数を示します。
+これは、ジェネリクスプログラミングをサポートするために許可したい関数の種類の些細な例です。
+(後に[ジェネリクス型](#ジェネリクス型)についても触れます。)
 
 ```Go
-// Print prints the elements of a slice.
-// It should be possible to call this with any slice value.
-func Print(s []T) { // Just an example, not the suggested syntax.
+// Printはスライスの要素をプリントします。
+// これは、任意のスライス値で呼び出すことができるはずです。
+func Print(s []T) { // ただの例であって、提案された構文ではありません。
 	for _, v := range s {
 		fmt.Println(v)
 	}
 }
 ```
 
-With this approach, the first decision to make is: how should the type
-parameter `T` be declared?
-In a language like Go, we expect every identifier to be declared in
-some way.
+With this approach, the first decision to make is: how should the type parameter `T` be declared?
+In a language like Go, we expect every identifier to be declared in some way.
+このアプローチでは、最初に決定すべきことは、型パラメータ `T` をどのように宣言すべきかということです。
+Goのような言語では、すべての識別子が何らかの方法で宣言されることを期待しています。
 
-Here we make a design decision: type parameters are similar to
-ordinary non-type function parameters, and as such should be listed
-along with other parameters.
-However, type parameters are not the same as non-type parameters, so
-although they appear in the list of parameters we want to distinguish
-them.
-That leads to our next design decision: we define an additional,
-optional, parameter list, describing type parameters.
+Here we make a design decision: type parameters are similar to ordinary non-type function parameters, and as such should be listed along with other parameters.
+However, type parameters are not the same as non-type parameters, so although they appear in the list of parameters we want to distinguish them.
+That leads to our next design decision: we define an additional, optional, parameter list, describing type parameters.
 This parameter list appears before the regular parameters.
 It starts with the keyword `type`, and lists type parameters.
+ここで設計上の決定をします。型パラメータは通常の非型関数パラメータと似ているので、他のパラメータと一緒にリストアップします。
+しかし、型パラメータは非型パラメータと同じではないので、パラメータのリストには表示されますが、区別したいのです。
+これが次の設計上の決定につながります。型パラメータを記述する追加のオプションのパラメータリストを定義します。
+このパラメータリストは、通常のパラメータの前に表示されます。
+キーワード `type` で始まり、型パラメータを列挙します。
 
 ```Go
-// Print prints the elements of any slice.
-// Print has a type parameter T, and has a single (non-type)
-// parameter s which is a slice of that type parameter.
+// Printは、任意のスライスの要素をプリントします。
+// Printは、単一の非型パラメータTを持ちます。
+// その型のパラメータのスライスであるパラメータs
 func Print(type T)(s []T) {
-	// same as above
+	// 同上
 }
 ```
 
-This says that within the function `Print` the identifier `T` is a
-type parameter, a type that is currently unknown but that will be
-known when the function is called.
-As seen above, the type parameter may be used as a type when
-describing the ordinary non-type parameters.
-It may also be used within the body of the function.
+これは、関数 `Print` の中で識別子 `T` が型パラメータであり、現在は不明だが関数が呼び出されたときにはわかるような型であることを示しています。
+上で見たように、型パラメータは通常の非型パラメータを記述する際に型として使われることがあります。
+また、関数の本文の中で使用されることもあります。
 
-Since `Print` has a type parameter, any call of `Print` must provide a
-type argument.
-Later we will see how this type argument can usually be deduced from
-the non-type argument, by using [function argument type
-inference](#Function-argument-type-inference).
-For now, we'll pass the type argument explicitly.
-Type arguments are passed much like type parameters are declared: as a
-separate list of arguments.
-At the call site, the `type` keyword is not used.
+`Print`は型パラメータを持つので、`Print`の呼び出しはすべて型引数を与えなければならない。
+後で、[関数引数の型推論](#関数引数の型推論)を使って、型引数が通常どのようにして非型引数から推論されるかを見てみましょう。
+今のところは、明示的に型引数を渡します。
+型引数は型パラメータが宣言されるのと同じように、別の引数リストとして渡されます。
+呼び出し元では、`type`キーワードは使用されません。
 
 ```Go
-	// Call Print with a []int.
-	// Print has a type parameter T, and we want to pass a []int,
-	// so we pass a type argument of int by writing Print(int).
-	// The function Print(int) expects a []int as an argument.
+	// Printを[]intで呼び出します。
+	// Printには型パラメータTがあり、[]intを渡したいのです。
+	// なので、Print(int)を書くことでint型の引数を渡します。
+	// 関数Print(int)は引数に[]intを渡します。
 
 	Print(int)([]int{1, 2, 3})
 
-	// This will print:
+	// これは次のようにプリントされます。
 	// 1
 	// 2
 	// 3
 ```
 
-### Constraints
+### 成約
 
-Let's make our example slightly more complicated.
-Let's turn it into a function that converts a slice of any type into a
-`[]string` by calling a `String` method on each element.
+この例をもう少し複雑にしてみましょう。
+各要素に対して `String` メソッドを呼び出して、任意の型のスライスを `[]string` に変換する関数に変えてみましょう。
 
 ```Go
-// This function is INVALID.
+// この関数は無効です。
 func Stringify(type T)(s []T) (ret []string) {
 	for _, v := range s {
-		ret = append(ret, v.String()) // INVALID
+		ret = append(ret, v.String()) // 無効
 	}
 	return ret
 }
 ```
 
-This might seem OK at first glance, but in this example `v` has type
-`T`, and we don't know anything about `T`.
-In particular, we don't know that `T` has a `String` method.
-So the call to `v.String()` is invalid.
+一見するとこれでいいように思えるかもしれませんが、この例では `v` は `T` 型を持ち、`T` については何もわかりません。
+特に、`T` が `String` メソッドを持っていることもわかりません。
+したがって、`v.String()` の呼び出しは無効です。
 
-Naturally, the same issue arises in other languages that support
-generic programming.
-In C++, for example, a generic function (in C++ terms, a function
-template) can call any method on a value of generic type.
-That is, in the C++ approach, calling `v.String()` is fine.
-If the function is called with a type argument that does not have a
-`String` method, the error is reported when compiling the call to
-`v.String` with that type argument.
-These errors can be lengthy, as there may be several layers of generic
-function calls before the error occurs, all of which must be reported
-to understand what went wrong.
+当然のことながら、ジェネリクスプログラミングをサポートする他の言語でも同じ問題が発生します。
+例えば、C++では、汎用関数（C++用語では、関数テンプレート）は、汎用型の値に対して任意のメソッドを呼び出すことができます。
+つまり、C++のアプローチでは、`v.String()`を呼び出しても問題ありません。
+型の引数に`String`メソッドを持たない関数が呼び出された場合、その型の引数を持つ`v.String`への呼び出しをコンパイルする際にエラーが報告されます。
+このようなエラーは、エラーが発生するまでに汎用関数の呼び出しが何層にもわたっていることがあるので、何が間違っていたのかを理解するためには、そのすべてを報告しなければなりません。
 
-The C++ approach would be a poor choice for Go.
-One reason is the style of the language.
-In Go we don't refer to names, such as, in this case, `String`, and
-hope that they exist.
-Go resolves all names to their declarations when they are seen.
+C++のアプローチはGoには向かないでしょう。
+その理由の一つは、言語のスタイルにあります。
+Goでは、この場合の`String`のように名前を参照して、名前が存在することを期待することはありません。
+Goは、すべての名前を見たときに、その名前の宣言を解決します。
 
-Another reason is that Go is designed to support programming at
-scale.
-We must consider the case in which the generic function definition
-(`Stringify`, above) and the call to the generic function (not shown,
-but perhaps in some other package) are far apart.
-In general, all generic code expects the type arguments to meet
-certain requirements.
-We refer to these requirements as _constraints_ (other languages have
-similar ideas known as type bounds or trait bounds or concepts).
-In this case, the constraint is pretty obvious: the type has to have a
-`String() string` method.
-In other cases it may be much less obvious.
+もう一つの理由は、Go はスケールでのプログラミングをサポートするように設計されているからです。
+ジェネリクス関数の定義(上記の `Stringify`)とジェネリクス関数の呼び出し(図示されていませんが、おそらく他のパッケージに含まれていると思われます)が離れている場合を考えなければなりません。
+一般的に、すべてのジェネリクスコードは型引数が特定の要件を満たすことを期待しています。
+我々はこれらの要件を_成約(constraints)_と呼んでいます（他の言語では、型の境界、形質の境界、または概念として知られている同様の考え方があります）。
+この場合、制約は非常に明白です: 型は `String() string` メソッドを持たなければなりません。
+他のケースでは、もっと明白ではないかもしれません。
 
-We don't want to derive the constraints from whatever `Stringify`
-happens to do (in this case, call the `String` method).
-If we did, a minor change to `Stringify` might change the
-constraints.
-That would mean that a minor change could cause code far away, that
-calls the function, to unexpectedly break.
-It's fine for `Stringify` to deliberately change its constraints, and
-force users to change.
-What we want to avoid is `Stringify` changing its constraints
-accidentally.
+制約は、`Stringify`が何をするにしても（この場合、`String`メソッドを呼び出すにしても）、その制約を導出したくありません。
+もしそうすると、`Stringify` を少し変更しただけで制約が変更される可能性があります。
+つまり、ちょっとした変更で、その関数を呼び出す遠く離れたコードが予期せず壊れてしまう可能性があるということです。
+`Stringify`が意図的に制約を変更して、ユーザに変更を強制するのは構いません。
+私たちが避けたいのは、`Stringify`が偶然に制約を変更することです。
 
-This means that the constraints must set limits on both the type
-arguments passed by the caller and the code in the generic function.
-The caller may only pass type arguments that satisfy the constraints.
-The generic function may only use those values in ways that are
-permitted by the constraints.
-This is an important rule that we believe should apply to any attempt
-to define generic programming in Go: generic code can only use
-operations that its type arguments are known to implement.
+これは、制約が呼び出し元によって渡される型引数とジェネリクス関数のコードの両方に制限を設定しなければならないことを意味します。
+呼び出し元は、制約を満たす型引数のみを渡すことができます。
+ジェネリクス関数は、制約によって許可された方法でのみ、これらの値を使用することができます。
+これは、Goでジェネリクスプログラミングを定義しようとする場合に適用すべき重要なルールです。
+ジェネリクスコードは、その型引数が実装されていることが知られている操作しか使用できません。
 
-### Operations permitted for any type
+### どのようなタイプでも操作が許可されていた場合
 
-Before we discuss constraints further, let's briefly note what happens
-in their absence.
-If a generic function does not specify a constraint for a type
-parameter, as is the case for the `Print` method above, then any type
-argument is permitted for that parameter.
-The only operations that the generic function can use with values of
-that type parameter are those operations that are permitted for values
-of any type.
-In the example above, the `Print` function declares a variable `v`
-whose type is the type parameter `T`, and it passes that variable to a
-function.
+制約について議論する前に、制約がない場合に何が起こるかを簡単に説明します。
+上述の`Print`メソッドのように、汎用関数が型パラメータに対して制約を指定していない場合、その型パラメータに対しては、どのような型の引数も許可されます。
+汎用関数がその型パラメータの値で使用できる操作は、任意の型の値に対して許可されている操作のみです。
+上の例では、`Print`関数は型パラメータ`T`を型とする変数`v`を宣言し、その変数を関数に渡しています。
 
-The operations permitted for any type are:
+どのようなタイプでも許される操作は
 
-* declare variables of those types
-* assign other values of the same type to those variables
-* pass those variables to functions or return them from functions
-* take the address of those variables
-* convert or assign values of those types to the type `interface{}`
-* convert a value of type `T` to type `T` (permitted but useless)
-* use a type assertion to convert an interface value to the type
-* use the type as a case in a type switch
-* define and use composite types that use those types, such as a slice
-  of that type
-* pass the type to some builtin functions such as `new`
+* これらの型の変数を宣言する
+* これらの変数に同じ型の他の値を代入する
+* これらの変数を関数に渡すか、関数から返すかします。
+* これらの変数のアドレスを取る
+* これらの型の値を`interface{}`型に変換したり，代入したりします．
+* 型`T`の値を型`T`に変換します (許可されていますが無駄です)
+* インターフェイスの値を型に変換するために、型アサーションを使用します。
+* タイプスイッチのケースとしてタイプを使用する
+* そのタイプのスライスなど、それらのタイプを使用する複合タイプを定義して使用します。
+* 型を`new`のような組み込み関数に渡します。
 
-It's possible that future language changes will add other such
-operations, though none are currently anticipated.
+将来の言語変更により、このような操作が追加される可能性はありますが、現在のところ何も予想されていません。
 
-### Defining constraints
+### 制約の定義
 
-Go already has a construct that is close to what we need for a
-constraint: an interface type.
-An interface type is a set of methods.
-The only values that can be assigned to a variable of interface type
-are those whose types implement the same methods.
-The only operations that can be done with a value of interface type,
-other than operations permitted for any type, are to call the
-methods.
+Goには、制約に必要なものに近い構成要素がすでにあります。
+インターフェース型はメソッドの集合です。
+インターフェース型の変数に代入できる値は、その型が同じメソッドを実装しているものだけです。
+インターフェース型の値でできる操作は、任意の型で許可されている操作以外では、メソッドを呼び出すことだけです。
 
-Calling a generic function with a type argument is similar to
-assigning to a variable of interface type: the type argument must
-implement the constraints of the type parameter.
-Writing a generic function is like using values of interface type: the
-generic code can only use the operations permitted by the constraint
-(or operations that are permitted for any type).
+型の引数を持つジェネリクス関数を呼び出すことは、インターフェース型の変数に代入することに似ています：型の引数は、型パラメータの制約を実装しなければなりません。
+ジェネリクス関数を書くことは、インターフェース型の値を使うことに似ています。
+ジェネリクスコードは、制約によって許可された操作（または任意の型に対して許可された操作）のみを使うことができます。
 
-In this design, constraints are simply interface types.
-Implementing a constraint is simply implementing the interface type.
-(Later we'll see how to define constraints for operations other than
-method calls, such as [binary operators](#Operators)).
+この設計では、制約は単にインタフェース型です。
+制約を実装することは、単純にインターフェース型を実装することになります。
+(後に、[演算子](#演算子)のように、メソッド呼び出し以外の操作に対して制約を定義する方法を見ていきます)。
 
-For the `Stringify` example, we need an interface type with a `String`
-method that takes no arguments and returns a value of type `string`.
+`Stringify` の例では、引数を取らずに `String` 型の値を返す `String` メソッドを持つインタフェース型が必要です。
 
 ```Go
-// Stringer is a type constraint that requires the type argument to have
-// a String method and permits the generic function to call String.
-// The String method should return a string representation of the value.
+// Stringerは型制約であり、型の引数が
+// Stringメソッドを作成し、汎用関数がStringを呼び出すことを許可します。
+// Stringメソッドは、値の文字列表現を返す必要があります。
 type Stringer interface {
 	String() string
 }
 ```
 
-(It doesn't matter for this discussion, but this defines the same
-interface as the standard library's `fmt.Stringer` type, and  real
-code would likely simply use `fmt.Stringer`.)
+(この議論には関係ありませんが、これは標準ライブラリの`fmt.Stringer`型と同じインタフェースを定義しており、実際のコードでは単に`fmt.Stringer`を使うことになるでしょう。)
 
 ### Using a constraint
 
