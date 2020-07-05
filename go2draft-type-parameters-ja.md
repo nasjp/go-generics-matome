@@ -871,31 +871,28 @@ type EdgeInterface interface { Nodes() (NodeInterface, NodeInterface) }
 Goにジェネリクスを追加しようとする場合、
 コンパイラが確認できる方法で互いに参照する複数の型引数を持つジェネリクスコードをインスタンス化できることが必要条件となります。
 
-### Pointer methods
+### ポインタメソッド
 
-There are cases where a generic function will only work as expected if
-a type argument `A` has methods defined on the pointer type `*A`.
-This happens when writing a generic function that expects to call a
-method that modifies a value.
+型の引数`A`がポインタ型`*A`に定義されたメソッドを持っている場合にのみ、
+ジェネリクス関数が期待通りに動作する場合があります。
+これは、値を変更するメソッドを呼び出すことを期待してジェネリクス関数を書く場合に起こります。
 
-Consider this example of a function that expects a type `T` that has a
-`Set(string)` method that initializes the value based on a string.
+この例では、文字列に基づいて値を初期化する`Set(string)`メソッドを持つ`T`型を想定した関数を考えてみましょう。
 
 ```Go
-// Setter is a type constraint that requires that the type
-// implement a Set method that sets the value from a string.
+// Setterは、文字列から値を設定するSetメソッドを実装することを型に要求する型制約です。
 type Setter interface {
 	Set(string)
 }
 
-// FromStrings takes a slice of strings and returns a slice of T,
-// calling the Set method to set each returned value.
+// FromStringsは文字列のスライスを取り、Tのスライスを返し、
+// Setメソッドを呼び出してそれぞれの戻り値を設定します。
 //
-// Note that because T is only used for a result parameter,
-// type inference does not work when calling this function.
-// The type argument must be passed explicitly at the call site.
+// Tは結果パラメータにのみ使用されるため，
+// この関数を呼び出すと型推論が機能しないことに注意してください．
+// 型の引数は、呼び出し元で明示的に渡さなければなりません。
 //
-// This example compiles but is unlikely to work as desired.
+// この例はコンパイルされていますが、希望通りには動作しません。
 func FromStrings(type T Setter)(s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
@@ -905,123 +902,109 @@ func FromStrings(type T Setter)(s []string) []T {
 }
 ```
 
-Now let's see some code in a different package (this example is
-invalid).
+では、別のパッケージのコードを見てみましょう（この例は無効です）。
 
 ```Go
-// Settable is a integer type that can be set from a string.
+// Settableは文字列から設定できる整数型です。
 type Settable int
 
-// Set sets the value of *p from a string.
+// Setは、文字列から*pの値を設定します。
 func (p *Settable) Set(s string) {
 	i, _ := strconv.Atoi(s) // real code should not ignore the error
 	*p = Settable(i)
 }
 
 func F() {
-	// INVALID
+	// 無効
 	nums := FromStrings(Settable)([]string{"1", "2"})
-	// Here we want nums to be []Settable{1, 2}.
+	// ここではnumsを[]Settable{1, 2}にします。
 	...
 }
 ```
 
-The goal is to use `FromStrings` to get a slice of type `[]Settable`.
-Unfortunately, this example is not valid and will not compile.
+目標は`FromStrings`を用いて`[]Settable`型のスライスを取得することです。
+残念ながら、この例は有効ではないのでコンパイルできません。
 
-The problem is that `FromStrings` requires a type that has a
-`Set(string)` method.
-The function `F` is trying to instantiate `FromStrings` with
-`Settable`, but `Settable` does not have a `Set` method.
-The type that has a `Set` method is `*Settable`.
+問題は、`FromStrings`は`Set(string)`メソッドを持つ型を必要とすることです。
+関数`F`は`FromStrings`を`Settable`でインスタンス化しようとしていますが、
+`Settable`には`Set`メソッドがありません。
+`Set`メソッドを持つ型は`*Settable`である。
 
-So let's rewrite `F` to use `*Settable` instead.
+そこで、`F`を書き換えて`*Settable`を使うようにしましょう。
 
 ```Go
 func F() {
-	// Compiles but does not work as desired.
-	// This will panic at run time when calling the Set method.
+	/ コンパイルはするが、思うように動作しない。
+	/ これは、Setメソッドを呼び出すときに実行時にパニックになります。
 	nums := FromStrings(*Settable)([]string{"1", "2"})
 	...
 }
 ```
 
-This compiles but unfortunately it will panic at run time.
-The problem is that `FromStrings` creates a slice of type `[]T`.
-When instantiated with `*Settable`, that means a slice of type
-`[]*Settable`.
-When `FromStrings` calls `result[i].Set(v)`, that passes the pointer
-stored in `result[i]` to the `Set` method.
-That pointer is `nil`.
-The `Settable.Set` method will be invoked with a `nil` receiver,
-and will raise a panic due to a `nil` dereference error.
+これでコンパイルできますが、残念ながら実行時にパニックになります。
+問題は`FromStrings`が`[]T`型のスライスを生成することです。
+`FromStrings`が`*Settable`でインスタンス化された場合、これは`[]*Settable`型のスライスを意味します。
+`FromStrings`が`result[i].Set(v)`を呼び出すと、`result[i]`に格納されているポインタを`Set`メソッドに渡します。
+このポインタは`nil`です。
+`Settable.Set`メソッドは`nil`のレシーバで呼び出され、`nil`の参照解除エラーでパニックを起こすことになります。
 
-What we need is a way to write `FromStrings` such that it can take
-the type `Settable` as an argument but invoke a pointer method.
-To repeat, we can't use `Settable` because it doesn't have a `Set`
-method, and we can't use `*Settable` because then we can't create a
-slice of type `Settable`.
+必要なのは、`Settable`型を引数に取りながらポインタメソッドを呼び出すことができるような`FromStrings`の書き方です。
+繰り返しになりますが、`Settable`には`Set`メソッドがないので、`Settable`は使えませんし、`*Settable`も使えません。
 
-One approach that could work would be to use two different type
-parameters: both `Settable` and `*Settable`.
+これでは`Settable`型と`*Settable`型のスライスを作成することができないからです。
 
 ```Go
 package from
 
-// Setter2 is a type constraint that requires that the type
-// implement a Set method that sets the value from a string,
-// and also requires that the type be a pointer to its type parameter.
+// Setter2は、文字列から値を設定するSetメソッドを実装することを要求する型制約であり、
+// 型パラメータへのポインタであることも要求します。
 type Setter2(type B) interface {
 	Set(string)
 	type *B
 }
 
-// FromStrings2 takes a slice of strings and returns a slice of T,
-// calling the Set method to set each returned value.
+// FromStrings2は文字列のスライスを取り、Tのスライスを返し、
+// Setメソッドを呼び出してそれぞれの戻り値を設定します。
 //
-// We use two different type parameters so that we can return
-// a slice of type T but call methods on *T.
-// The Setter2 constraint ensures that PT is a pointer to T.
+// 2つの異なる型のパラメータを使用して
+/ 、T型のスライスを返し、*Tのメソッドを呼び出すことができます。
+// Setter2制約により、PTがTへのポインタであることが保証されます。
 func FromStrings2(type T interface{}, PT Setter2(T))(s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
-		// The type of &result[i] is *T which is in the type list
-		// of Setter2, so we can convert it to PT.
+		// &result[i]の型はSetter2の型リストにある*Tなので、
+		// PTに変換します。
 		p := PT(&result[i])
-		// PT has a Set method.
+		// PTにはSetメソッドがあります。
 		p.Set(v)
 	}
 	return result
 }
 ```
 
-We would call `FromStrings2` like this:
+このように`FromStrings2`を呼び出します。
 
 ```Go
 func F2() {
-	// FromStrings2 takes two type parameters.
-	// The second parameter must be a pointer to the first.
-	// Settable is as above.
+	// FromStrings2は2つの型のパラメータを取ります。
+	// 2番目のパラメータは1番目のパラメータへのポインタでなければなりません。
+	// 設定可能なのは上記の通りです。
 	nums := FromStrings2(Settable, *Settable)([]string{"1", "2"})
-	// Now nums is []Settable{1, 2}.
+	// これでnumsは[]Settable{1, 2}になりました。
 	...
 }
 ```
 
-This approach works as expected, but it is awkward.
-It forces `F2` to work around a problem in `FromStrings2` by passing
-two type arguments.
-The second type argument is required to be a pointer to the first type
-argument.
-This is a complex requirement for what seems like it ought to be a
-reasonably simple case.
+このアプローチは期待通りに動作しますが、厄介です。
+これは、2つの型引数を渡すことで`FromStrings2`の問題を回避するために`F2`を強制するものです。
+2番目の型引数は1番目の型引数へのポインタであることが要求されます。
+これは、合理的に単純なケースであるはずなのに複雑な要件です。
 
-Another approach would be to pass in a function rather than calling a
-method.
+別のアプローチとしては、メソッドを呼び出すのではなく関数を渡すという方法もあります。
 
 ```Go
-// FromStrings3 takes a slice of strings and returns a slice of T,
-// calling the set function to set each returned value.
+// FromStrings3は文字列のスライスを取り、Tのスライスを返し、
+// 返された値をそれぞれ設定するためにset関数を呼び出します。
 func FromStrings3(type T)(s []string, set func(*T, string)) []T {
 	results := make([]T, len(s))
 	for i, v := range s {
@@ -1031,98 +1014,82 @@ func FromStrings3(type T)(s []string, set func(*T, string)) []T {
 }
 ```
 
-We would call `Strings3` like this:
+このように`Strings3`と呼ぶことができます。
 
 ```Go
 func F3() {
-	// FromStrings3 takes a function to set the value.
-	// Settable is as above.
+	// FromStrings3は値を設定するための関数を取ります。
+	// 設定可能なのは上記の通りです。
 	nums := FromStrings3(Settable)([]string{"1", "2"},
 		func(p *Settable, s string) { p.Set(s) })
-	// Now nums is []Settable{1, 2}.
+	// これでnumsは[]Settable{1, 2}になりました。
 }
 ```
 
-This approach also works as expected, but it is also awkward.
-The caller has to pass in a function just to call the `Set` method.
-This is the kind of boilerplate code that we would hope to avoid when
-using generics.
+このアプローチも期待通りに動作しますが、厄介です。
+呼び出し元は`Set`メソッドを呼び出すためだけに関数を渡さなければなりません。
+これはジェネリクスを使うときに避けたい陳腐なコードです。
 
-Although these approaches are awkward, they do work.
-That said, we suggest another feature to address this kind of issue: a
-way to express constraints on the pointer to the type parameter,
-rather than on the type parameter itself.
-The way to do this is to write the type parameter as though it were a
-pointer type: `(type *T Constraint)`.
+これらのアプローチは厄介ですが、うまくいきます。
+それは、型パラメータ自体ではなく、
+型パラメータへのポインタに対する制約を表現する方法です。
+この方法は、型パラメータをポインタ型であるかのように書くことです。`(type *T Constraint)`.
 
-Writing `*T` instead of `T` in a type parameter list changes two
-things.
-Let's assume that the type argument at the call site is `A`, and the
-constraint is `Constraint` (this syntax may be used without a
-constraint, but there is no reason to do so).
+型パラメータのリストで`T`の代わりに`*T`を書くと、2つのことが変わります。
+呼び出し元の型の引数が`A`で、制約が`Constraint`であるとします(この構文は制約なしでも使えますが、そうする理由はありません)。
 
-The first thing that changes is that `Constraint` is applied to `*A`
-rather than `A`.
-That is, `*A` must implement `Constraint`.
-It's OK if `A` implements `Constraint`, but the requirement is that
-`*A` implement it.
-Note that if `Constraint` has any methods, this implies that `A` must
-not be a pointer type: if `A` is a pointer type, then `*A` is a
-pointer to a pointer, and such types never have any methods.
+最初に変わるのは、`Constraint`が`A`ではなく`*A`に適用されることです。
+つまり、`*A`は`Constraint`を実装しなければなりません。
+`A`が`Constraint`を実装しても構いませんが、
+`*A`が`Constraint`を実装していることが条件となります。
+もし`Constraint`が何らかのメソッドを持つ場合、
+これは`A`がポインタ型であってはならないことを意味していることに注意してください。
 
-The second thing that changes is that within the body of the function,
-any methods in `Constraint` are treated as though they were pointer
-methods.
-They may only be invoked on values of type `*T` or addressable values
-of type `T`.
+2つ目の変更点は、関数本体内で`Constraint`のメソッドがポインタ型であるかのように扱われることです。
+これらのメソッドは`*T`型の値か`T`型のアドレス指定可能な値に対してのみ呼び出すことができます。
 
 ```Go
-// FromStrings takes a slice of strings and returns a slice of T,
-// calling the Set method to set each returned value.
+// FromStringsは文字列のスライスを取り、Tのスライスを返し、
+// Setメソッドを呼び出してそれぞれの戻り値を設定します。
 //
-// We write *T, meaning that given a type argument A,
-// the pointer type *A must implement Setter.
+// ここでは*Tと書きますが、これは型引数Aが与えられた場合、
+// ポインタ型*AはSetterを実装しなければならないことを意味しています。
 //
-// Note that because T is only used for a result parameter,
-// type inference does not work when calling this function.
-// The type argument must be passed explicitly at the call site.
+// Tは結果パラメータにのみ使用されるため，
+// この関数を呼び出すと型推論が機能しないことに注意してください。
+// 型の引数は呼び出し元で明示的に渡さなければなりません。
 func FromStrings(type *T Setter)(s []string) []T {
 	result := make([]T, len(s))
 	for i, v := range s {
-		// result[i] is an addressable value of type T,
-		// so it's OK to call Set.
+		// result[i]はT型のアドレス指定可能な値なので、Setを呼んでも問題ありません。
 		result[i].Set(v)
 	}
 	return result
 }
 ```
 
-Again, using `*T` here means that given a type argument `A`, the type
-`*A` must implement the constraint `Setter`.
-In this case, `Set` must be in the method set of `*A`.
-Within `FromStrings`, using `*T` means that the `Set` method may only
-be called on an addressable value of type `T`.
+ここでも`*T`を使うと、型の引数`A`が与えられると、
+型`*A`は`Setter`という制約を実装しなければならないことを意味します。
+この場合、`Set`は`*A`のメソッドセットの中になければなりません。
+`FromStrings`の中で`*T`を使うということは、
+`Set`メソッドは`T`型のアドレス指定可能な値に対してのみ呼び出すことができるということを意味します。
 
-We can now use this as
+これを次のように使うことができます。
 
 ```Go
 func F() {
-	// With the rewritten FromStrings, this is now OK.
-	// *Settable implements Setter.
+	// FromStringsを書き換えたことで、これでOKになりました。
+	// *SettableはSetterを実装しています。
 	nums := from.Strings(Settable)([]string{"1", "2"})
-	// Here nums is []Settable{1, 2}.
+	// ここでnumsは[]Settable{1, 2}です。
 	...
 }
 ```
 
-To be clear, using `type *T Setter` does not mean that the `Set`
-method must only be a pointer method.
-`Set` could still be a value method.
-That would be OK because all value methods are also in the pointer
-type's method set.
-In this example that only makes sense if `Set` can be written as a
-value method, which might be the case when defining the method on a
-struct that contains pointer fields.
+はっきりさせておきますが、`type *T Setter`を使っても`Set`メソッドはポインタメソッドでなければならないという意味ではありません。
+`Set`はまだ値メソッドである可能性があります。
+すべての値メソッドはポインタ型のメソッドセットに含まれているからです。
+この例では、`Set`を値メソッドとして記述できる場合にのみ意味があります。
 
 ### Using generic types as unnamed function parameter types
 
