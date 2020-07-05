@@ -8,7 +8,7 @@
 
 Go言語を拡張して、型や関数にオプションの型パラメータを追加することを提案します。
 型パラメータはインターフェイス型によって制約されることがあります。
-また、型制約として使用される場合には、interface型を拡張して、それらに割り当てられる可能性のある型のセットをリストアップできるようにすることを提案します。
+また、型制約として使用される場合には、インターフェイス型を拡張して、それらに割り当てられる可能性のある型のセットをリストアップできるようにすることを提案します。
 多くの場合、関数呼び出しから型引数を省略できるように、統一アルゴリズムによる型推論がサポートされています。
 この設計はGo 1と完全に下位互換性があります。
 
@@ -33,7 +33,7 @@ Go言語を拡張して、型や関数にオプションの型パラメータを
 * これらの型のパラメータは、通常のパラメータと関数本体で使用することができます。
 * 型は型のパラメータリストを持つこともできます。`type M(type T) []T`.
 * 各型パラメータはオプションの型制約を持つことができます： `func F(type T Constraint)(p T) { ... }`
-* タイプ制約はインターフェイスタイプです。
+* 型制約はインターフェイス型です。
 * 型制約として使用されるインターフェイス型は、事前に宣言された型のリストを持つことができます。
 * 一般的な関数や型を使用する場合は、型の引数を渡す必要があります。
 * 型推論では、一般的なケースでは型引数を省略することができます。
@@ -177,14 +177,14 @@ Goは、すべての名前を見たときに、その名前の宣言を解決し
 これは、Goでジェネリクスプログラミングを定義しようとする場合に適用すべき重要なルールです。
 ジェネリクスコードは、その型引数が実装されていることが知られている操作しか使用できません。
 
-### どのようなタイプでも操作が許可されていた場合
+### どのような型でも操作が許可されていた場合
 
 制約について議論する前に、制約がない場合に何が起こるかを簡単に説明します。
 上述の`Print`メソッドのように、汎用関数が型パラメータに対して制約を指定していない場合、その型パラメータに対しては、どのような型の引数も許可されます。
 汎用関数がその型パラメータの値で使用できる操作は、任意の型の値に対して許可されている操作のみです。
 上の例では、`Print`関数は型パラメータ`T`を型とする変数`v`を宣言し、その変数を関数に渡しています。
 
-どのようなタイプでも許される操作は
+どのような型でも許される操作は
 
 * これらの型の変数を宣言する
 * これらの変数に同じ型の他の値を代入する
@@ -193,8 +193,8 @@ Goは、すべての名前を見たときに、その名前の宣言を解決し
 * これらの型の値を`interface{}`型に変換したり，代入したりします．
 * 型`T`の値を型`T`に変換します (許可されていますが無駄です)
 * インターフェイスの値を型に変換するために、型アサーションを使用します。
-* タイプスイッチのケースとしてタイプを使用する
-* そのタイプのスライスなど、それらのタイプを使用する複合タイプを定義して使用します。
+* タイプスイッチのケースとして型を使用する
+* その型のスライスなど、それらの型を使用する複合型を定義して使用します。
 * 型を`new`のような組み込み関数に渡します。
 
 将来の言語変更により、このような操作が追加される可能性はありますが、現在のところ何も予想されていません。
@@ -246,12 +246,12 @@ func Stringify(type T Stringer)(s []T) (ret []string) {
 The single type parameter `T` is followed by the constraint that applies to `T`, in this case `Stringer`.
 単一の型パラメータ `T` の後には、`T` に適用される制約(今回は、`Stringer`)が続きます。
 
-### 複数のタイプパラメータ
+### 複数の型パラメータ
 
 `Stringify` の例では単一の型パラメータしか使わないが、関数は複数の型パラメータを持つことができます。
 
 ```Go
-// Print2には2つのタイプパラメータと2つの非タイプパラメータがあります。
+// Print2には2つの型パラメータと2つの非型パラメータがあります。
 func Print2(type T1, T2)(s1 []T1, s2 []T2) { ... }
 ```
 
@@ -308,7 +308,7 @@ func StrAndPrint(type L interface{}, T Stringer)(labels []L, vals []T) {
 }
 ```
 
-1つの制約は、複数のタイプパラメータに使用できます。
+1つの制約は、複数の型パラメータに使用できます。
 制約は、各型パラメータに個別に適用されます。
 
 ```Go
@@ -381,7 +381,7 @@ type List(type T) struct {
 	val  T
 }
 
-// このタイプは不正です。
+// この型は不正です。
 type P(type T1, T2) struct {
 	F *P(T2, T1) // (T1, T2)でなければなりません。
 }
@@ -480,7 +480,7 @@ Goでは、複合型や任意の定義型で `<` を使うことはできませ�
 
 つまり、`<`に対する制約を書こうとするのではなく、逆の方法でこれに取り組むことができます。
 
-#### 制約内のタイプリスト
+#### 制約内の型リスト
 
 制約として使用されるインタフェース型は、型の引数として使用できる明示的な型をリストアップすることができます。
 これは、`type`キーワードの後にカンマで区切られた型のリストを続けて使用します。
@@ -542,7 +542,7 @@ func Smallest(type T constraints.Ordered)(s []T) T {
 }
 ```
 
-#### 制約内の比較可能なタイプ
+#### 制約内の比較可能な型
 
 先ほど、演算子は言語で事前に宣言された型に対してのみ使用できるというルールには、2つの例外があることを述べました。
 例外は `==` と `!=` で、これは構造体、配列、およびインタフェース型に対して許可されています。
@@ -582,7 +582,7 @@ type ComparableHasher interface {
 制約 `ComparableHasher` は比較可能な任意の型で実装されており、`Hash() uintptr` メソッドを持ちます。
 制約として `ComparableHasher` を用いるジェネリクス関数は、その型の値を比較することができ、`Hash` メソッドを呼び出すことができます。
 
-#### インターフェースタイプのタイプリスト
+#### インターフェース型の型リスト
 
 
 型リストを持つインタフェース型は、型パラメータに対する制約としてのみ使用することができます。
@@ -766,141 +766,110 @@ func indexEqualInt(s []equalInt, e equalInt) int {
 制約は`Equaler(equalInt)`であり、これはメソッド`Equal(equalInt) bool`を持つ任意の型で満たされます。
 `equalInt`型には`equalInt`型のパラメータを受け付けるメソッド`Equal`があるので、すべてがうまくいき、コンパイルは成功します。
 
-### Mutually referencing type parameters
+### 型パラメータの相互参照
 
-Within a single type parameter list, constraints may refer to any of
-the other type parameters, even ones that are declared later in the
-same list.
-(The scope of a type parameter starts at the `type` keyword of the
-parameter list and extends to the end of the enclosing function or
-type declaration.)
+単一の型パラメータ・リスト内では、制約は他の型パラメータを参照することができ、同じリスト内で後から宣言された型パラメータも参照することができます。
+(型パラメータのスコープは、パラメータ・リストの`type`キーワードから始まり、それを囲む関数または型宣言の最後まで拡張されます)。
 
-For example, consider a generic graph package that contains generic
-algorithms that work with graphs.
-The algorithms use two types, `Node` and `Edge`.
-`Node` is expected to have a method `Edges() []Edge`.
-`Edge` is expected to have a method `Nodes() (Node, Node)`.
-A graph can be represented as a `[]Node`.
+例えば、グラフを扱うジェネリクスアルゴリズムを含むジェネリクスグラフパッケージを考えてみましょう。
+このアルゴリズムでは、`Node`と`Edge`の2つの型が使われます。
+`Node`は`Edges() []Edge`というメソッドを持つことが期待される。
+`Edge`は`Nodes() (Node, Node)`というメソッドを持つことが期待される。
+グラフは`[]ノード`として表現することができる。
 
-This simple representation is enough to implement graph algorithms
-like finding the shortest path.
+この単純な表現だけで、最短経路を求めるなどのグラフアルゴリズムを実装できます。
 
 ```Go
 package graph
 
-// NodeConstraint is the type constraint for graph nodes:
-// they must have an Edges method that returns the Edge's
-// that connect to this Node.
+// NodeConstraintはグラフノードの型制約です。
+// ノードは、このノードに接続するEdgeを返すEdgesメソッドを持っていなければなりません。
 type NodeConstraint(type Edge) interface {
 	Edges() []Edge
 }
 
-// EdgeConstraint is the type constraint for graph edges:
-// they must have a Nodes method that returns the two Nodes
-// that this edge connects.
+// EdgeConstraintは、グラフエッジの型制約です。
+// このエッジが接続する2つのNodeを返すNodesメソッドを持たなければなりません。
 type EdgeConstraint(type Node) interface {
 	Nodes() (from, to Node)
 }
 
-// Graph is a graph composed of nodes and edges.
+// グラフとは、ノードとエッジで構成されたグラフのことです。
 type Graph(type Node NodeConstraint(Edge), Edge EdgeConstraint(Node)) struct { ... }
 
-// New returns a new graph given a list of nodes.
+// Newは、ノードのリストを与えられた新しいグラフを返します。
 func New(
 	type Node NodeConstraint(Edge), Edge EdgeConstraint(Node)) (
 	nodes []Node) *Graph(Node, Edge) {
 	...
 }
 
-// ShortestPath returns the shortest path between two nodes,
-// as a list of edges.
+// ShortestPathは、2つのノード間の最短パスを、エッジのリストとして返します。
 func (g *Graph(Node, Edge)) ShortestPath(from, to Node) []Edge { ... }
 ```
 
-There are a lot of type arguments and instantiations here.
-In the constraint on `Node` in `Graph`, the `Edge` being passed to the
-type constraint `NodeConstraint` is the second type parameter of
-`Graph`.
-This instantiates `NodeConstraint` with the type parameter `Edge`, so
-we see that `Node` must have a method `Edges` that returns a slice of
-`Edge`, which is what we want.
-The same applies to the constraint on `Edge`, and the same type
-parameters and constraints are repeated for the function `New`.
-We aren't claiming that this is simple, but we are claiming that it is
-possible.
+ここには多くの型引数とインスタンス化があります。
+`Graph`の`Node`に対する制約では，`NodeConstraint`の型制約に渡される`Edge`は，`Graph`の2番目の型パラメータです。
+これは`NodeConstraint`のインスタンスを`Edge`という型パラメータで生成しているので，
+`Node`は`Edge`のスライスを返すメソッド`Edges`を持たなければならないことがわかります．
+同じことが`Edge`の制約にも当てはまり、同じ型のパラメータと制約が関数`New`にも繰り返されています。
+これが単純だと主張しているのではなく、可能だと主張しているのです。
 
-It's worth noting that while at first glance this may look like a
-typical use of interface types, `Node` and `Edge` are non-interface
-types with specific methods.
-In order to use `graph.Graph`, the type arguments used for `Node` and
-`Edge` have to define methods that follow a certain pattern, but they
-don't have to actually use interface types to do so.
-In particular, the methods do not return interface types.
+一見するとインターフェース型の典型的な使い方のように見えるかもしれませんが、
+`Node`と`Edge`は特定のメソッドを持つ非インターフェース型です。
+`graph.Graph`を使うためには、`Node`と`Edge`の型引数には、
+あるパターンに従ったメソッドを定義しなければなりませんが、
+実際にはインターフェース型を使う必要はありません。。
+特に、これらのメソッドはインタフェース型を返さない。
 
-For example, consider these type definitions in some other package:
+例えば、他のパッケージでの型の定義を考えてみましょう。
 
 ```Go
-// Vertex is a node in a graph.
+// Vertexはグラフのノードです。
 type Vertex struct { ... }
 
-// Edges returns the edges connected to v.
+// Edgesは、vに接続されたエッジを返します。
 func (v *Vertex) Edges() []*FromTo { ... }
 
-// FromTo is an edge in a graph.
+// FromToはグラフ内の辺です。
 type FromTo struct { ... }
 
-// Nodes returns the nodes that ft connects.
+// Nodes は ft が接続しているノードを返します。
 func (ft *FromTo) Nodes() (*Vertex, *Vertex) { ... }
 ```
 
-There are no interface types here, but we can instantiate
-`graph.Graph` using the type arguments `*Vertex` and `*FromTo`.
+ここにはインターフェイスの型はありませんが
+型引数 `*Vertex` と `*FromTo` を用いて `graph.Graph` を作成します。
 
 ```Go
 var g = graph.New(*Vertex, *FromTo)([]*Vertex{ ... })
 ```
 
-`*Vertex` and `*FromTo` are not interface types, but when used
-together they define methods that implement the constraints of
-`graph.Graph`.
-Note that we couldn't pass plain `Vertex` or `FromTo` to `graph.New`,
-since `Vertex` and `FromTo` do not implement the constraints.
-The `Edges` and `Nodes` methods are defined on the pointer types
-`*Vertex` and `*FromTo`; the types `Vertex` and `FromTo` do not have
-any methods.
+`*Vertex`と`*FromTo`はインタフェース型ではありませんが、一緒に使うと`graph.Graph`の制約を実装するメソッドを定義します。
+なお、`Vertex`と`FromTo`は制約を実装していないので、`graph.New`にはプレーンな`Vertex`と`FromTo`を渡すことはできません。
+`Edges`と`Nodes`のメソッドはポインタ型`*Vertex`と`*FromTo`で定義されており、`Vertex`と`FromTo`の型には何のメソッドもありません。
 
-When we use a generic interface type as a constraint, we first
-instantiate the type with the type argument(s) supplied in the type
-parameter list, and then compare the corresponding type argument
-against the instantiated constraint.
-In this example, the `Node` type argument to `graph.New` has a
-constraint `NodeConstraint(Edge)`.
-When we call `graph.New` with a `Node` type argument of `*Vertex` and
-a `Edge` type argument of `*FromTo`, in order to check the constraint
-on `Node` the compiler instantiates `NodeConstraint` with the type
-argument `*FromTo`.
-That produces an instantiated constraint, in this case a requirement
-that `Node` have a method `Edges() []*FromTo`, and the compiler
-verifies that `*Vertex` satisfies that constraint.
+一般的なインターフェース型を制約として利用する場合、
+まず、型パラメータリストで与えられた型引数を用いてその型をインスタンス化し、
+対応する型引数をインスタンス化された制約と比較します。
+この例では、`graph.New`の`Node`型の引数には`NodeConstraint(Edge)`という制約があります。
+この例では、`graph.New`の`Node`型の引数に`*Vertex`、`Edge`型の引数に`*FromTo`を指定して`graph.New`を呼び出すと、
+`Node`の制約を確認するために、コンパイラは`NodeConstraint`のインスタンスを`*FromTo`という型の引数で生成します。
+この場合、`Node`が`Edges() []*FromTo`というメソッドを持つことが要求され、コンパイラは`*Vertex`がその制約を満たすことを確認します。
 
-Although `Node` and `Edge` do not have to be instantiated with
-interface types, it is also OK to use interface types if you like.
+また、`Node`や`Edge`は必ずしもインタフェース型を使ってインスタンス化する必要はないが、インタフェース型を使っても構いません。
 
 ```Go
 type NodeInterface interface { Edges() []EdgeInterface }
 type EdgeInterface interface { Nodes() (NodeInterface, NodeInterface) }
 ```
 
-We could instantiate `graph.Graph` with the types `NodeInterface` and
-`EdgeInterface`, since they implement the type constraints.
-There isn't much reason to instantiate a type this way, but it is
-permitted.
+型制約を実装しているので、`graph.Graph`のインスタンスに`NodeInterface`と`EdgeInterface`という型を与えることができます。
+この方法で型をインスタンス化する理由はあまりありませんが、許可されています。
 
-This ability for type parameters to refer to other type parameters
-illustrates an important point: it should be a requirement for any
-attempt to add generics to Go that it be possible to instantiate
-generic code with multiple type arguments that refer to each other in
-ways that the compiler can check.
+型パラメータが他の型パラメータを参照することができるということは、重要な点を示しています。
+Goにジェネリクスを追加しようとする場合、
+コンパイラが確認できる方法で互いに参照する複数の型引数を持つジェネリクスコードをインスタンス化できることが必要条件となります。
 
 ### Pointer methods
 
