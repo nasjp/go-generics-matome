@@ -227,17 +227,14 @@ type Stringer interface {
 
 (この議論には関係ありませんが、これは標準ライブラリの`fmt.Stringer`型と同じインタフェースを定義しており、実際のコードでは単に`fmt.Stringer`を使うことになるでしょう。)
 
-### Using a constraint
+### 制約を使う
 
-For a generic function, a constraint can be thought of as the type of
-the type argument: a meta-type.
-So, although generic functions are not required to use constraints,
-when they do they are listed in the type parameter list as the
-meta-type of a type parameter.
+ジェネリクス関数では、制約は型引数の型、つまりメタ型と考えることができます。
+つまり、ジェネリクス関数は制約を使用する必要はありませんが、制約を使用する場合は、型パラメータのメタ型として型パラメータリストにリストされます。
 
 ```Go
-// Stringify calls the String method on each element of s,
-// and returns the results.
+// Stringifyは、sの各要素に対してStringメソッドを呼び出します。
+// そして、その結果を返します。
 func Stringify(type T Stringer)(s []T) (ret []string) {
 	for _, v := range s {
 		ret = append(ret, v.String())
@@ -246,51 +243,46 @@ func Stringify(type T Stringer)(s []T) (ret []string) {
 }
 ```
 
-The single type parameter `T` is followed by the constraint that
-applies to `T`, in this case `Stringer`.
+The single type parameter `T` is followed by the constraint that applies to `T`, in this case `Stringer`.
+単一の型パラメータ `T` の後には、`T` に適用される制約(今回は、`Stringer`)が続きます。
 
-### Multiple type parameters
+### 複数のタイプパラメータ
 
-Although the `Stringify` example uses only a single type parameter,
-functions may have multiple type parameters.
+`Stringify` の例では単一の型パラメータしか使わないが、関数は複数の型パラメータを持つことができます。
 
 ```Go
-// Print2 has two type parameters and two non-type parameters.
+// Print2には2つのタイプパラメータと2つの非タイプパラメータがあります。
 func Print2(type T1, T2)(s1 []T1, s2 []T2) { ... }
 ```
 
-Compare this to
+これと比較してみてください。
 
 ```Go
-// Print2Same has one type parameter and two non-type parameters.
+// Print2Sameには1つの型パラメータと2つの非型パラメータがあります。
 func Print2Same(type T)(s1 []T, s2 []T) { ... }
 ```
 
-In `Print2` `s1` and `s2` may be slices of different types.
-In `Print2Same` `s1` and `s2` must be slices of the same element
-type.
+`Print2` では `s1` と `s2` は異なる型のスライスであっても構いません。
+`Print2Same` では、`s1` と `s2` は同じ要素型のスライスでなければなりません。
 
-Each type parameter may have its own constraint.
+各型のパラメータは、独自の制約を持つことができます。
 
 ```Go
-// Stringer is a type constraint that requires a String method.
-// The String method should return a string representation of the value.
+// Stringerは、Stringメソッドを必要とする型制約です。
+// Stringメソッドは、値を文字列で表現したものを返す必要があります。
 type Stringer interface {
 	String() string
 }
 
-// Plusser is a type constraint that requires a Plus method.
-// The Plus method is expected to add the argument to an internal
-// string and return the result.
+// Plusserは、Plusメソッドを必要とする型制約です。
+// Plusメソッドは、引数を内部文字列に追加して結果を返すことが期待されています。
 type Plusser interface {
 	Plus(string) string
 }
 
-// ConcatTo takes a slice of elements with a String method and a slice
-// of elements with a Plus method. The slices should have the same
-// number of elements. This will convert each element of s to a string,
-// pass it to the Plus method of the corresponding element of p,
-// and return a slice of the resulting strings.
+// ConcatToはStringメソッドで要素のスライスを取得し、Plusメソッドでも要素のスライスを取得します。
+// スライスは同じ数の要素を持つ必要があります。
+// sの各要素を文字列に変換し、それをpの対応する要素のPlusメソッドに渡して、結果の文字列のスライスを返します。
 func ConcatTo(type S Stringer, P Plusser)(s []S, p []P) []string {
 	r := make([]string, len(s))
 	for i, v := range s {
@@ -300,30 +292,28 @@ func ConcatTo(type S Stringer, P Plusser)(s []S, p []P) []string {
 }
 ```
 
-If a constraint is specified for any type parameter, every type
-parameter must have a constraint.
-If some type parameters need a constraint and some do not, those that
-do not should have a constraint of `interface{}`.
+型パラメータに制約が指定されている場合、すべての型パラメータは制約を持たなければなりません。
+型パラメータの中に制約が必要なものとそうでないものがある場合、そうでないものは `interface{}` の制約を持つべきです。
 
 ```Go
-// StrAndPrint takes a slice of labels, which can be any type,
-// and a slice of values, which must have a String method,
-// converts the values to strings, and prints the labelled strings.
+// StrAndPrintは、任意の型のラベルのスライスと、
+// Stringメソッドを持たなければならない値のスライスを取り、
+// 値を文字列に変換し、
+// ラベル付けされた文字列をPrintします。
 func StrAndPrint(type L interface{}, T Stringer)(labels []L, vals []T) {
-	// Stringify was defined above. It returns a []string.
+	// Stringifyは上記で定義されています。これは[]stringを返します。
 	for i, s := range Stringify(vals) {
 		fmt.Println(labels[i], s)
 	}
 }
 ```
 
-A single constraint can be used for multiple type parameters, just as
-a single type can be used for multiple non-type function parameters.
-The constraint applies to each type parameter separately.
+1つの制約は、複数のタイプパラメータに使用できます。
+制約は、各型パラメータに個別に適用されます。
 
 ```Go
-// Stringify2 converts two slices of different types to strings,
-// and returns the concatenation of all the strings.
+// Stringify2は，異なる型の2つのスライスを文字列に変換し，
+// すべての文字列を連結したものを返します．
 func Stringify2(type T1, T2 Stringer)(s1 []T1, s2 []T2) string {
 	r := ""
 	for _, v1 := range s1 {
@@ -336,103 +326,96 @@ func Stringify2(type T1, T2 Stringer)(s1 []T1, s2 []T2) string {
 }
 ```
 
-### Generic types
+### ジェネリクス型
 
-We want more than just generic functions: we also want generic types.
-We suggest that types be extended to take type parameters.
+私たちはジェネリクス関数だけではなく、ジェネリクス型も欲しいと考えています。
+私たちは、型を拡張して型のパラメータを取ることを提案します。
 
 ```Go
-// Vector is a name for a slice of any element type.
 type Vector(type T) []T
 ```
 
-A type's parameters are just like a function's type parameters.
+型のパラメータは関数の型パラメータと同じです。
 
-Within the type definition, the type parameters may be used like any
-other type.
+型の定義内では、型のパラメータは他の型と同様に使用することができます。
 
-To use a generic type, you must supply type arguments.
-This looks like a function call, except that the function in this case
-is actually a type.
-This is called _instantiation_.
-When we instantiate a type by supplying type arguments for the type
-parameters, we produce a type in which each use of a type parameter in
-the type definition is replaced by the corresponding type argument.
+ジェネリクス型を使用するには、型の引数を与えなければなりません。
+これは関数の呼び出しのように見えますが、この場合の関数は実際には型です。
+これは _インスタンス化(instantiation)_ と呼ばれています。
+型パラメータに型引数を供給して型をインスタンス化すると、
+型定義における型パラメータの各使用が対応する型引数に置き換えられた型が生成されます。
 
 ```Go
-// v is a Vector of int values.
+// vはint値のVectorです。
 //
-// This is similar to pretending that "Vector(int)" is a valid identifier,
-// and writing
+// これは、"Vector(int) "が有効な識別子であるかのように見せかけて、
+// 下記のようにを書いているのと似ています。
 //   type "Vector(int)" []int
 //   var v "Vector(int)"
 // All uses of Vector(int) will refer to the same "Vector(int)" type.
+// Vector(int)の全使用箇所は、同じ "Vector(int)" 型を参照します。
 //
 var v Vector(int)
 ```
 
-Generic types can have methods.
-The receiver type of a method must declare the same number of type
-parameters as are declared in the receiver type's definition.
-They are declared without the `type` keyword or any constraint.
+ジェネリクス型はメソッドを持つことができます。
+メソッドのレシーバ型は、レシーバ型の定義で宣言されているのと同じ数の型パラメータを宣言しなければなりません。
+これらのパラメータは、`type`キーワードや制約なしに宣言されます。
 
 ```Go
-// Push adds a value to the end of a vector.
+// Pushは、ベクトルの末尾に値を追加します。
 func (v *Vector(T)) Push(x T) { *v = append(*v, x) }
 ```
 
-The type parameters listed in a method declaration need not have the
-same names as the type parameters in the type declaration.
-In particular, if they are not used by the method, they can be `_`.
+メソッド宣言に列挙された型パラメータは、型宣言の型パラメータと同じ名前を持つ必要はありません。
+特に、メソッドで使用されない場合は `_` とすることができます。
 
-A generic type can refer to itself in cases where a type can
-ordinarily refer to itself, but when it does so the type arguments
-must be the type parameters, listed in the same order.
-This restriction prevents infinite recursion of type instantiation.
+ジェネリクス型は、型が通常自分自身を参照できる場合には自分自身を参照することができますが、
+その場合、型の引数は型のパラメータを同じ順序で列挙しなければなりません。
+この制限により、型のインスタンス化の無限再帰を防ぐことができます。
 
 ```Go
-// List is a linked list of values of type T.
+// Listは、型Tの値の連結リストです。
 type List(type T) struct {
-	next *List(T) // this reference to List(T) is OK
+	next *List(T) // List(T)への参照はOK
 	val  T
 }
 
-// This type is INVALID.
+// このタイプは不正です。
 type P(type T1, T2) struct {
-	F *P(T2, T1) // INVALID; must be (T1, T2)
+	F *P(T2, T1) // (T1, T2)でなければなりません。
 }
 ```
 
-This restriction applies to both direct and indirect references.
+この制限は、直接参照と間接参照の両方に適用されます。
 
 ```Go
-// ListHead is the head of a linked list.
+// ListHeadは、連結リストの先頭です。
 type ListHead(type T) struct {
 	head *ListElement(T)
 }
 
-// ListElement is an element in a linked list with a head.
-// Each element points back to the head.
+// ListElementは、headを持つ連結リストの要素です。
+// 各要素は先頭を指し示します。
 type ListElement(type T) struct {
 	next *ListElement(T)
 	val  T
-	// Using ListHead(T) here is OK.
-	// ListHead(T) refers to ListElement(T) refers to ListHead(T).
-	// Using ListHead(int) would not be OK, as ListHead(T)
-	// would have an indirect reference to ListHead(int).
+  // ここではListHead(T)はOK
+  // ListHead(T)はListElement(T)を参照し、ListElement(T)はListHead(T)を参照します。
+	// ListHead(T) は ListHead(int) への間接参照を持っているため、ListHead(int) を使用しても問題ありません。
 	head *ListHead(T)
 }
 ```
 
-(Note: with more understanding of how people want to write code, it
-may be possible to relax this rule to permit some cases that use
-different type arguments.)
+(注意: 人々がどのようにコードを書きたいのかをより理解した上で、
+異なる型の引数を使用するいくつかのケースを許可するために、
+このルールを緩和することが可能かもしれません。)
 
-The type parameter of a generic type may have constraints.
+ジェネリクス型の型パラメータには制約がある場合があります。
 
 ```Go
-// StringableVector is a slice of some type, where the type
-// must have a String method.
+// StringableVectorは、何らかの型のスライスであり、
+// その型はStringメソッドを持たなければなりません。
 type StringableVector(type T Stringer) []T
 
 func (s StringableVector(T)) String() string {
@@ -441,43 +424,38 @@ func (s StringableVector(T)) String() string {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		// It's OK to call v.String here because v is of type T
-		// and T's constraint is Stringer.
+    // vはT型であり、Tの制約はStringerなので、ここではv.Stringを呼んでも問題ありません。
 		sb.WriteString(v.String())
 	}
 	return sb.String()
 }
 ```
 
-### Methods may not take additional type arguments
+### メソッドは追加の型の引数を取ることはできません。
 
-Although methods of a generic type may use the type's parameters,
-methods may not themselves have additional type parameters.
-Where it would be useful to add type arguments to a method, people
-will have to write a suitably parameterized top-level function.
+ジェネリクス型のメソッドは型のパラメータを使用することができますが、メソッド自体が型のパラメータを追加することはできません。
+メソッドに型の引数を追加することが有用な場合、適切にパラメータ化されたトップレベル関数を書かなければなりません。
 
-There is more discussion of this in [the issues
-section](#No-parameterized-methods).
+これについては [問題](#パラメータ化されていないメソッド)にてより多くの議論があります。
 
-### Operators
+### 演算子
 
-As we've seen, we are using interface types as constraints.
-Interface types provide a set of methods, and nothing else.
-This means that with what we've seen so far, the only thing that
-generic functions can do with values of type parameters, other than
-operations that are permitted for any type, is call methods.
+これまで見てきたように、インターフェイス型を制約として使用しています。
+インターフェース型はメソッドのセットを提供し、それ以外は何も提供しません。
+つまり、これまで見てきたことを考えると、
+ジェネリクス関数が型のパラメータの値を使ってできることは、
+どの型でも許されている操作以外には、
+メソッドを呼び出すことしかないということになります。
 
-However, method calls are not sufficient for everything we want to
-express.
-Consider this simple function that returns the smallest element of a
-slice of values, where the slice is assumed to be non-empty.
+しかし、メソッドの呼び出しだけでは表現したいことのすべてに十分ではありません。
+スライスが空でないことを前提とした値のスライスの最小要素を返すこの単純な関数を考えてみましょう。
 
 ```Go
-// This function is INVALID.
+// 不正
 func Smallest(type T)(s []T) T {
-	r := s[0] // panic if slice is empty
+	r := s[0] // スライスが空だとpanicが起こる
 	for _, v := range s[1:] {
-		if v < r { // INVALID
+		if v < r { // 不正
 			r = v
 		}
 	}
@@ -485,76 +463,57 @@ func Smallest(type T)(s []T) T {
 }
 ```
 
-Any reasonable generics implementation should let you write this
-function.
-The problem is the expression `v < r`.
-This assumes that `T` supports the `<` operator, but `T` has no
-constraint.
-Without a constraint the function `Smallest` can only use operations
-that are available for all types, but not all Go types support `<`.
-Unfortunately, since `<` is not a method, there is no obvious way to
-write a constraint&mdash;an interface type&mdash;that permits `<`.
+合理的なジェネリクスの実装であれば、この関数を書くことができるはずです。
+問題は `v < r` という式です。
+これは `T` が `<` 演算子をサポートしていることを前提としていますが、`T` には制約がありません。
+制約がなければ、関数 `Smallest` はすべての型で利用可能な演算しか使えませんが、
+すべてのGoの型が `<` をサポートしているわけではありません。
+残念ながら、`<`はメソッドではないので、`<`を許可する制約(インタフェース型)を書く明白な方法はありません。
 
-We need a way to write a constraint that accepts only types that
-support `<`.
-In order to do that, we observe that, aside from two exceptions that
-we will discuss later, all the arithmetic, comparison, and logical
-operators defined by the language may only be used with types that are
-predeclared by the language, or with defined types whose underlying
-type is one of those predeclared types.
-That is, the operator `<` can only be used with a predeclared type
-such as `int` or `float64`, or a defined type whose underlying type is
-one of those types.
-Go does not permit using `<` with a composite type or with an
-arbitrary defined type.
+サポートする型のみを受け入れる制約を記述する方法が必要です。
+そのためには、後述する2つの例外を除いて、
+その言語で定義されているすべての算術演算子、比較演算子、論理演算子は、
+その言語で事前に宣言されている型、あるいは、その基になる型が事前に宣言されている型の1つである定義済みの型でのみ使用することができるということを理解しておきましょう。
+つまり、演算子 `<` は `int` や `float64` のような事前に宣言された型、
+またはその基になる型がこれらの型のいずれかである定義済みの型に対してのみ使用することができます。
+Goでは、複合型や任意の定義型で `<` を使うことはできません。
 
-This means that rather than try to write a constraint for `<`, we can
-approach this the other way around: instead of saying which operators
-a constraint should support, we can say which (underlying) types a
-constraint should accept.
+つまり、`<`に対する制約を書こうとするのではなく、逆の方法でこれに取り組むことができます。
 
-#### Type lists in constraints
+#### 制約内のタイプリスト
 
-An interface type used as a constraint may list explicit types that
-may be used as type arguments.
-This is done using the `type` keyword followed by a comma-separated
-list of types.
+制約として使用されるインタフェース型は、型の引数として使用できる明示的な型をリストアップすることができます。
+これは、`type`キーワードの後にカンマで区切られた型のリストを続けて使用します。
 
-For example:
+例:
 
 ```Go
-// SignedInteger is a type constraint that permits any
-// signed integer type.
+// SignedIntegerは、任意の符号付き整数型を許可する型制約です。
 type SignedInteger interface {
 	type int, int8, int16, int32, int64
 }
 ```
 
-The `SignedInteger` constraint specifies that the type argument
-must be one of the listed types.
-More precisely, the underlying type of the type argument must be
-identical to the underlying type of one of the types in the type
-list.
-This means that `SignedInteger` will accept the listed integer types,
-and will also accept any type that is defined as one of those types.
+`SignedInteger`制約は、型の引数がリストされた型のいずれかでなければならないことを指定する。
+より正確には、型の引数の基礎となる型は、型リストの型の一つと同一でなければなりません。
+これは、`SignedInteger`はリストにある整数型を受け入れ、
+それらの型のいずれかとして定義されている型も受け入れることを意味する。
 
-When a generic function uses a type parameter with one of these
-constraints, it may use any operation that is permitted by all of the
-listed types.
-This can be an operation like `<`, `range`, `<-`, and so forth.
-If the function can be compiled successfully using each type listed in
-the constraint, then the operation is permitted.
+ジェネリクス関数がこれらの制約のいずれかを持つ型パラメータを使用する場合、
+リストされたすべての型で許可されている操作を使用することができます。
+これは、`<`, `range`, `<-`などのような操作です。
+制約にリストされた各型を使用して関数を正常にコンパイルできれば、
+その操作は許可されます。
 
-A constraint may only have one type list.
+1つの制約は1つの型リストしか持てません。
 
-For the `Smallest` example shown earlier, we could use a constraint
-like this:
+先ほどの`Smallest`の例では、次のような制約を使うことができます。
 
 ```Go
 package constraints
 
-// Ordered is a type constraint that matches any ordered type.
-// An ordered type is one that supports the <, <=, >, and >= operators.
+// Orderedは、任意の順序付き型にマッチする型制約です。
+// 順序付き型とは、<, <=, >, >=演算子をサポートしている型のことです。
 type Ordered interface {
 	type int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64, uintptr,
@@ -563,17 +522,17 @@ type Ordered interface {
 }
 ```
 
-In practice this constraint would likely be defined and exported in a
-new standard library package, `constraints`, so that it could be used
-by function and type definitions.
+実際には、この制約は、関数や型の定義で使用できるように、
+新しい標準ライブラリパッケージである`constraints`で定義され、
+エクスポートされる可能性が高いでしょう。
 
-Given that constraint, we can write this function, now valid:
+この制約が与えられると、この関数を書くことができます。
 
 ```Go
-// Smallest returns the smallest element in a slice.
-// It panics if the slice is empty.
+// Smallestはスライス内の最小の要素を返します。
+// スライスが空の場合はパニックになります。
 func Smallest(type T constraints.Ordered)(s []T) T {
-	r := s[0] // panics if slice is empty
+	r := s[0] // スライスが空だとpanicが起こる
 	for _, v := range s[1:] {
 		if v < r {
 			r = v
@@ -583,31 +542,24 @@ func Smallest(type T constraints.Ordered)(s []T) T {
 }
 ```
 
-#### Comparable types in constraints
+#### 制約内の比較可能なタイプ
 
-Earlier we mentioned that there are two exceptions to the rule that
-operators may only be used with types that are predeclared by the
-language.
-The exceptions are `==` and `!=`, which are permitted for struct,
-array, and interface types.
-These are useful enough that we want to be able to write a constraint
-that accepts any comparable type.
+先ほど、演算子は言語で事前に宣言された型に対してのみ使用できるというルールには、2つの例外があることを述べました。
+例外は `==` と `!=` で、これは構造体、配列、およびインタフェース型に対して許可されています。
+これらは十分に便利なので、同等の型を受け付ける制約を書けるようにしたいところです。
 
-To do this we introduce a new predeclared type constraint:
-`comparable`.
-A type parameter with the `comparable` constraint accepts as a type
-argument any comparable type.
-It permits the use of `==` and `!=` with values of that type parameter.
+これを実現するために、新しい事前宣言型制約`comparable`を導入します。
+`comparable`制約を持つ型パラメータは、任意の比較可能な型を型の引数として受け入れます。
+これにより、その型パラメータの値に対して `==` や `!=` を使用することができます。
 
-For example, this function may be instantiated with any comparable
-type:
+例えば、この関数は、任意の比較可能な型でインスタンス化することができます。
 
 ```Go
-// Index returns the index of x in s, or -1 if not found.
+// Indexは、sの中のxのインデックスを返し、見つからなかった場合は-1を返します。
 func Index(type T comparable)(s []T, x T) int {
 	for i, v := range s {
-		// v and x are type T, which has the comparable
-		// constraint, so we can use == here.
+    // vとxはT型であり、これは同等の制約を持っているので、
+    // ここでは==を使うことができます
 		if v == x {
 			return i
 		}
@@ -616,112 +568,96 @@ func Index(type T comparable)(s []T, x T) int {
 }
 ```
 
-Since `comparable`, like all constraints, is an interface type, it can
-be embedded in another interface type used as a constraint:
+すべての制約と同様に`comparable`はインタフェース型なので、
+制約として使われる別のインタフェース型に埋め込むことができます。
 
 ```Go
-// ComparableHasher is a type constraint that matches all
-// comparable types with a Hash method.
+// ComparableHasherは、すべての比較可能な型をHashメソッドでマッチさせる型制約です。
 type ComparableHasher interface {
 	comparable
 	Hash() uintptr
 }
 ```
 
-The constraint `ComparableHasher` is implemented by any type that is
-comparable and also has a `Hash() uintptr` method.
-A generic function that uses `ComparableHasher` as a constraint can
-compare values of that type and can call the `Hash` method.
+制約 `ComparableHasher` は比較可能な任意の型で実装されており、`Hash() uintptr` メソッドを持ちます。
+制約として `ComparableHasher` を用いるジェネリクス関数は、その型の値を比較することができ、`Hash` メソッドを呼び出すことができます。
 
-#### Type lists in interface types
+#### インターフェースタイプのタイプリスト
 
-Interface types with type lists may only be used as constraints on
-type parameters.
-They may not be used as ordinary interface types.
-The same is true of the predeclared interface type `comparable`.
 
-This restriction may be lifted in future language versions.
-An interface type with a type list may be useful as a form of sum
-type, albeit one that can have the value `nil`.
-Some alternative syntax would likely be required to match on identical
-types rather than on underlying types; perhaps `type ==`.
-For now, this is not permitted.
+型リストを持つインタフェース型は、型パラメータに対する制約としてのみ使用することができます。
+通常のインタフェース型としては使用できません。
+予め宣言されたインタフェース型`comparable`も同様です。
 
-### Function argument type inference
+この制限は将来の言語バージョンでは解除されるかもしれません。
+型リストを持つインターフェイス型は、値 `nil` を持つことができるものではあるが、和型の一形態として有用であるかもしれません。
+下位の型ではなく同一の型でマッチするためには、何らかの代替構文が必要になるでしょう。
+今のところ、これは許可されていません。
 
-In many cases, when calling a function with type parameters, we can
-use type inference to avoid having to explicitly write out the type
-arguments.
+### 関数引数の型推論
 
-Go back to [the example](#Type-parameters) of a call to the simple
-`Print` function:
+多くの場合、型の引数を持つ関数を呼び出す際には、
+型推論を使用することで、 型の引数を明示的に書き出す必要がなくなります。
+
+単純な`Print`関数の呼び出しの[例題](#型パラメータ)を振り返りましょう。
 
 ```Go
 	Print(int)([]int{1, 2, 3})
 ```
 
-The type argument `int` in the function call can be inferred from the
-type of the non-type argument.
+関数呼び出しの型引数`int`は、非型引数の型から推測することができます。
 
-This can only be done when all the function's type parameters are used
-for the types of the function's (non-type) input parameters.
-If there are some type parameters that are used only for the
-function's result parameter types, or only in the body of the
-function, then our algorithm does not infer the type arguments for the
-function, since there is no value from which to infer the types.
+これは、すべての関数の型パラメータが関数の非型引数の型に使用されている場合にのみ可能です。
+関数の結果パラメータの型にのみ使用される、
+または関数のボディにのみ使用される型パラメータがある場合、
+型を推論するための値がないため、
+我々のアルゴリズムは関数の型引数を推論しません。
 
-When the function's type arguments can be inferred, the language uses
-type unification.
-On the caller side we have the list of types of the actual (non-type)
-arguments, which for the `Print` example is simply `[]int`.
-On the function side is the list of the types of the function's
-non-type parameters, which for `Print` is `[]T`.
-In the lists, we discard respective arguments for which the function
-side does not use a type parameter.
-We must then unify the remaining argument types.
+関数の型引数が推測できる場合、言語は型の統一を使用します。
+呼び出し側には実際の非型引数の型のリストがあり、`Print` の例では単に `[]int` です。
+関数側には、関数の非型パラメータの型のリストがあり、`Print` の場合は `[]T` です。
+リストの中から、関数側が型パラメータを使わないそれぞれの引数を破棄します。
+そして、残りの引数の型を統一しなければなりません。
 
-Type unification is a two-pass algorithm.
-In the first pass, we ignore untyped constants on the caller side and
-their corresponding types in the function definition.
+型の統一は2パスのアルゴリズムです。
+最初のパスでは、呼び出し側の型なし定数と関数定義の対応する型を無視します。
 
-We compare corresponding types in the lists.
-Their structure must be identical, except that type parameters on the
-function side match the type that appears on the caller side at the
-point where the type parameter occurs.
-If the same type parameter appears more than once on the function
-side, it will match multiple argument types on the caller side.
-Those caller types must be identical, or type unification fails, and
-we report an error.
+そして、リスト内の対応する型を比較します。
+これらの構造は同一でなければなりませんが、
+関数側の型パラメータが、
+その型パラメータが発生した時点で呼び出し側に現れる型と一致することを除いては、
+同じ構造でなければなりません。
+関数側で同じ型パラメータが複数回出現する場合、
+呼び出し側では複数の引数の型と一致します。
+これらの呼び出し側の型は同一でなければならず、
+そうでない場合は型の統一に失敗し、
+エラーが報告されます。
 
-After the first pass, we check any untyped constants on the caller
-side.
-If there are no untyped constants, or if the type parameters in the
-corresponding function types have matched other input types, then
-type unification is complete.
+最初のパスの後、
+呼び出し側で型指定されていない定数がないかどうかをチェックします。
+型指定されていない定数がない場合、
+または対応する関数型の型パラメータが他の入力型と一致している場合、
+型の統一が完了します。
 
-Otherwise, for the second pass, for any untyped constants whose
-corresponding function types are not yet set, we determine the default
-type of the untyped constant in [the usual
-way](https://golang.org/ref/spec#Constants).
-Then we run the type unification algorithm again, this time with no
-untyped constants.
+そうでなければ、2回目のパスでは、
+対応する関数型がまだ設定されていない型なし定数について、[通常の方法](https://golang.org/ref/spec#Constants)で型なし定数のデフォルト型を決定します。
+そして，再び型統合アルゴリズムを実行します．
 
-In this example
+この例では
 
 ```Go
 	s1 := []int{1, 2, 3}
 	Print(s1)
 ```
 
-we compare `[]int` with `[]T`, match `T` with `int`, and we are done.
-The single type parameter `T` is `int`, so we infer that the call to
-`Print` is really a call to `Print(int)`.
+`[]int` と `[]T` を比較し、`T` を `int` にマッチさせて終わりです。
+単一の型パラメータ `T` は `int` であるため、`Print` の呼び出しは実際には `Print(int)` の呼び出しであると推論できます。
 
-For a more complex example, consider
+より複雑な例として、以下を考えてみましょう。
 
 ```Go
-// Map calls the function f on every element of the slice s,
-// returning a new slice of the results.
+// Mapはスライスsの各要素に対して関数fを呼び出します。
+// 結果の新しいスライスを返します。
 func Map(type F, T)(s []F, f func(F) T) []T {
 	r := make([]T, len(s))
 	for i, v := range s {
@@ -731,79 +667,59 @@ func Map(type F, T)(s []F, f func(F) T) []T {
 }
 ```
 
-The two type parameters `F` and `T` are both used for input
-parameters, so type inference is possible.
-In the call
+2つの型パラメータ `F` と `T` はどちらも入力パラメータとして用いられるので、型推論が可能です。
+呼び出しでは下記のようになります。
 
 ```Go
 	strs := Map([]int{1, 2, 3}, strconv.Itoa)
 ```
 
-we unify `[]int` with `[]F`, matching `F` with `int`.
-We unify the type of `strconv.Itoa`, which is `func(int) string`,
-with `func(F) T`, matching `F` with `int` and `T` with `string`.
-The type parameter `F` is matched twice, both times with `int`.
-Unification succeeds, so the call written as `Map` is a call of
-`Map(int, string)`.
+`[]int` と `[]F` に統一し、`F` と `int` をマッチングさせます。
+型は`func(int) string`である`strconv.Itoa`の型を`func(F) T`に統一し、`F`は`int`に、`T`は`string`にマッチします。
+型パラメータ`F`は2回マッチし、2回とも`int`とマッチする。
+統一に成功したので、`Map`と書かれた呼び出しは`Map(int, string)`の呼び出しになります。
 
-To see the untyped constant rule in effect, consider:
+型なし定数ルールが有効であることを確認するには、次のように考えてみてください。
 
 ```Go
-// NewPair returns a pair of values of the same type.
+// NewPairは、同じ型の値のペアを返します。
 func NewPair(type F)(f1, f2 F) *Pair(F) { ... }
 ```
 
-In the call `NewPair(1, 2)` both arguments are untyped constants, so
-both are ignored in the first pass.
-There is nothing to unify.
-We still have two untyped constants after the first pass.
-Both are set to their default type, `int`.
-The second run of the type unification pass unifies `F` with
-`int`, so the final call is `NewPair(int)(1, 2)`.
+呼び出しの `NewPair(1, 2)` では、両方の引数は型なし定数なので、最初のパスでは両方とも無視されます。
+統一するものは何もありません。
+最初のパスの後も2つの型なし定数が残っています。
+両方ともデフォルトの型 `int` に設定されています。
+型の統一パスの2回目の実行では `F` が `int` に統一されるので、最終的な呼び出しは `NewPair(int)(1, 2)` となります。
 
-In the call `NewPair(1, int64(2))` the first argument is an untyped
-constant, so we ignore it in the first pass.
-We then unify `int64` with `F`.
-At this point the type parameter corresponding to the untyped constant
-is fully determined, so the final call is `NewPair(int64)(1,
-int64(2))`.
+`NewPair(1, int64(2))`の呼び出しでは、最初の引数は型なしの定数なので、最初のパスでは無視します。
+次に、`int64`を`F`で統一します。
+この時点で型なし定数に対応する型パラメータは完全に決定されているので、最終的な呼び出しは`NewPair(int64)(1, int64(2))`である。
 
-In the call `NewPair(1, 2.5)` both arguments are untyped constants,
-so we move on the second pass.
-This time we set the first constant to `int` and the second to
-`float64`.
-We then try to unify `F` with both `int` and `float64`, so unification
-fails, and we report a compilation error.
+`NewPair(1, 2.5)`の呼び出しでは、引数は両方とも型なし定数なので、2回目のパスに移る。
+今回は最初の定数を`int`に、2番目の定数を`float64`に設定します。
+次に`F`を`int`と`float64`の両方で統一しようとすると、統一に失敗してコンパイルエラーとなります。
 
-Note that type inference is done without regard to constraints.
-First we use type inference to determine the type arguments to use for
-the function, and then, if that succeeds, we check whether those type
-arguments implement the constraints (if any).
+型推論は制約を無視して行われることに注意してください。
+まず、型推論を用いて関数に用いる型引数を決定し、それが成功した場合、その型引数が制約を実装しているかどうかをチェックします（もしあれば）。
 
-Note that after successful type inference, the compiler must still
-check that the arguments can be assigned to the parameters, as for any
-function call.
+型推論が成功した後も、関数呼び出しの場合と同様に、コンパイラは引数がパラメータに代入できるかどうかをチェックしなければならないことに注意してください。
 
-(Note: type inference is a convenience feature.
-Although we think it is an important feature, it does not add any
-functionality to the design, only convenience in using it.
-It would be possible to omit it from the initial implementation, and
-see whether it seems to be needed.
-That said, this feature doesn't require additional syntax, and
-produces more readable code.)
+(注意: 型推論は便利な機能です。 重要な機能であると考えていますが、
+これは何もデザインに機能性を持たせ，それを使用する上での利便性のみを考慮したものではありません。
+最初の実装からそれを省略して、それが必要と思われるかどうかを確認することは可能でしょう。
+そうは言っても、この機能は追加の構文を必要とせず、より読みやすいコードを生成します)。
 
-### Using types that refer to themselves in constraints
+### 制約の中で自分自身を参照する型を使用する
 
-It can be useful for a generic function to require a type argument
-with a method whose argument is the type itself.
-For example, this arises naturally in comparison methods.
-(Note that we are talking about methods here, not operators.)
-Suppose we want to write an `Index` method that uses an `Equal` method
-to check whether it has found the desired value.
-We would like to write that like this:
+ジェネリクス関数では、引数が型そのものであるメソッドで型の引数を要求することが便利です。
+例えば、これは比較メソッドで自然に発生します。
+(ここでは演算子ではなくメソッドの話をしていることに注意してください。)
+目的の値が見つかったかどうかを調べるために`Equal`メソッドを使う`Index`メソッドを書きたいとしましょう。
+このように書きたいとします。
 
 ```Go
-// Index returns the index of e in s, or -1 if not found.
+// indexは、sの中のeのインデックスを返します。
 func Index(type T Equaler)(s []T, e T) int {
 	for i, v := range s {
 		if e.Equal(v) {
@@ -814,10 +730,8 @@ func Index(type T Equaler)(s []T, e T) int {
 }
 ```
 
-In order to write the `Equaler` constraint, we have to write a
-constraint that can refer to the type argument being passed in.
-There is no way to do that directly, but what we can do is write an
-interface type that use a type parameter.
+`Equaler`制約を書くためには、渡される型引数を参照できる制約を書かなければなりません。
+これを直接行う方法はありませんが、できることは型引数を使うインタフェース型を書くことです。
 
 ```Go
 // Equaler is a type constraint for types with an Equal method.
@@ -826,39 +740,31 @@ type Equaler(type T) interface {
 }
 ```
 
-To make this work, `Index` will pass `T` as the type argument to
-`Equaler`.
-The rule is that if a type contraint has a single type parameter, and
-it is used in a function's type parameter list without an explicit
-type argument, then the type argument is the type parameter being
-constrained.
-In other words, in the definition of `Index` above, the constraint
-`Equaler` is treated as `Equaler(T)`.
+これを実現するために、`Index`は`T`を型引数として`Equaler`に渡します。
+このルールは、型制約が単一の型パラメータを持ち、
+それが明示的な型引数を持たずに関数の型パラメータリストで使われている場合、
+型引数は制約を受ける型パラメータであるというものです。
+つまり、上述の`Index`の定義では、制約`Equaler`は`Equaler(T)`として扱われます。
 
-This version of `Index` would be used with a type like `equalInt`
-defined here:
+このバージョンの`Index`は、ここで定義されている`equalInt`のような型と一緒に使われます。
 
 ```Go
-// equalInt is a version of int that implements Equaler.
+// equalIntは、Equalerを実装したintのバージョンです。
 type equalInt int
 
-// The Equal method lets equalInt implement the Equaler constraint.
+// Equalメソッドは、equalIntにEqualer制約を実装させます。
 func (a equalInt) Equal(b equalInt) bool { return a == b }
 
-// indexEqualInts returns the index of e in s, or -1 if not found.
+// indexEqualIntsは、sの中のeのインデックスを返します。
 func indexEqualInt(s []equalInt, e equalInt) int {
 	return Index(equalInt)(s, e)
 }
 ```
 
-In this example, when we pass `equalInt` to `Index`, we check whether
-`equalInt` implements the constraint `Equaler`.
-Since `Equaler` has a type parameter, we pass the type argument of
-`Index`, which is `equalInt`, as the type argument to `Equaler`.
-The constraint is, then, `Equaler(equalInt)`, which is satisfied
-by any type with a method `Equal(equalInt) bool`.
-The `equalInt` type has a method `Equal` that accepts a parameter of
-type `equalInt`, so all is well, and the compilation succeeds.
+この例では、`Index`に`equalInt`を渡すときに、`equalInt`が`Equaler`という制約を実装しているかどうかを調べます。
+`Equaler`は型パラメータを持っているので、`Index`の型引数として`equalInt`を`Equaler`に渡します。
+制約は`Equaler(equalInt)`であり、これはメソッド`Equal(equalInt) bool`を持つ任意の型で満たされます。
+`equalInt`型には`equalInt`型のパラメータを受け付けるメソッド`Equal`があるので、すべてがうまくいき、コンパイルは成功します。
 
 ### Mutually referencing type parameters
 
