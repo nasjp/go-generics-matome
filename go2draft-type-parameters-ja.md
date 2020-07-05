@@ -29,9 +29,9 @@ Go言語を拡張して、型や関数にオプションの型パラメータを
 このセクションは、Goのような言語でジェネリクスがどのように機能するのかをすでに知っている方を対象としています。
 これらの概念については、次のセクションで詳しく説明します。
 
-* 関数は、キーワード`type`で導入される追加の型パラメータリストを持つことができます: `func F(type T)(p T) { ... }`.
+* 関数は、キーワード`type`で導入される追加の型パラメータリストを持つことができます: `func F(type T)(p T) { ... }`
 * これらの型のパラメータは、通常のパラメータと関数本体で使用することができます。
-* 型は型のパラメータリストを持つこともできます。`type M(type T) []T`.
+* 型は型のパラメータリストを持つこともできます。`type M(type T) []T`
 * 各型パラメータはオプションの型制約を持つことができます： `func F(type T Constraint)(p T) { ... }`
 * 型制約はインターフェイス型です。
 * 型制約として使用されるインターフェイス型は、事前に宣言された型のリストを持つことができます。
@@ -115,17 +115,17 @@ func Print(type T)(s []T) {
 呼び出し元では、`type`キーワードは使用されません。
 
 ```Go
-	// Printを[]intで呼び出します。
-	// Printには型パラメータTがあり、[]intを渡したいのです。
-	// なので、Print(int)を書くことでint型の引数を渡します。
-	// 関数Print(int)は引数に[]intを渡します。
+// Printを[]intで呼び出します。
+// Printには型パラメータTがあり、[]intを渡したいのです。
+// なので、Print(int)を書くことでint型の引数を渡します。
+// 関数Print(int)は引数に[]intを渡します。
 
-	Print(int)([]int{1, 2, 3})
+Print(int)([]int{1, 2, 3})
 
-	// これは次のようにプリントされます。
-	// 1
-	// 2
-	// 3
+// これは次のようにプリントされます。
+// 1
+// 2
+// 3
 ```
 
 ### 成約
@@ -243,7 +243,6 @@ func Stringify(type T Stringer)(s []T) (ret []string) {
 }
 ```
 
-The single type parameter `T` is followed by the constraint that applies to `T`, in this case `Stringer`.
 単一の型パラメータ `T` の後には、`T` に適用される制約(今回は、`Stringer`)が続きます。
 
 ### 複数の型パラメータ
@@ -352,7 +351,6 @@ type Vector(type T) []T
 // 下記のようにを書いているのと似ています。
 //   type "Vector(int)" []int
 //   var v "Vector(int)"
-// All uses of Vector(int) will refer to the same "Vector(int)" type.
 // Vector(int)の全使用箇所は、同じ "Vector(int)" 型を参照します。
 //
 var v Vector(int)
@@ -602,7 +600,7 @@ type ComparableHasher interface {
 単純な`Print`関数の呼び出しの[例題](#型パラメータ)を振り返りましょう。
 
 ```Go
-	Print(int)([]int{1, 2, 3})
+Print(int)([]int{1, 2, 3})
 ```
 
 関数呼び出しの型引数`int`は、非型引数の型から推測することができます。
@@ -641,13 +639,13 @@ type ComparableHasher interface {
 
 そうでなければ、2回目のパスでは、
 対応する関数型がまだ設定されていない型なし定数について、[通常の方法](https://golang.org/ref/spec#Constants)で型なし定数のデフォルト型を決定します。
-そして，再び型統合アルゴリズムを実行します．
+そして，再び型統合アルゴリズムを実行します。
 
 この例では
 
 ```Go
-	s1 := []int{1, 2, 3}
-	Print(s1)
+s1 := []int{1, 2, 3}
+Print(s1)
 ```
 
 `[]int` と `[]T` を比較し、`T` を `int` にマッチさせて終わりです。
@@ -671,7 +669,7 @@ func Map(type F, T)(s []F, f func(F) T) []T {
 呼び出しでは下記のようになります。
 
 ```Go
-	strs := Map([]int{1, 2, 3}, strconv.Itoa)
+strs := Map([]int{1, 2, 3}, strconv.Itoa)
 ```
 
 `[]int` と `[]F` に統一し、`F` と `int` をマッチングさせます。
