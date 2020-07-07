@@ -1913,10 +1913,6 @@ _型リストを書き出す代わりに、`constraints.Arithmetic`や`constrain
 
 ##### 型パラメータである値に対して型アサーションを許可しないのはなぜですか？
 
-In an earlier version of this design, we permitted using type assertions and type switches on variables whose type was a type parameter, or whose type was based on a type parameter.
-We removed this facility because it is always possible to convert a value of any type to the empty interface type, and then use a type assertion or type switch on that.
-Also, it was sometimes confusing that in a constraint with a type list, a type assertion or type switch would use the actual type argument, not the underlying type of the type argument (the difference is explained in the section on [identifying the matched predeclared type](#Identifying-the-matched-predeclared-type)).
-
 この設計の以前のバージョンでは、
 型が型パラメータである変数、
 または型が型パラメータに基づいている変数に対して、
