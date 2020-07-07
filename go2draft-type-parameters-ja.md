@@ -161,7 +161,7 @@ Goは、すべての名前を見たときに、その名前の宣言を解決し
 もう一つの理由は、Go はスケールでのプログラミングをサポートするように設計されているからです。
 ジェネリクス関数の定義(上記の `Stringify`)とジェネリクス関数の呼び出し(図示されていませんが、おそらく他のパッケージに含まれていると思われます)が離れている場合を考えなければなりません。
 一般的に、すべてのジェネリクスコードは型引数が特定の要件を満たすことを期待しています。
-我々はこれらの要件を_成約(constraints)_と呼んでいます（他の言語では、型の境界、形質の境界、または概念として知られている同様の考え方があります）。
+我々はこれらの要件を_成約(constraints)_と呼んでいます（他の言語では、型の境界、トレイトの境界、または概念として知られている同様の考え方があります）。
 この場合、制約は非常に明白です: 型は `String() string` メソッドを持たなければなりません。
 他のケースでは、もっと明白ではないかもしれません。
 
@@ -434,7 +434,7 @@ func (s StringableVector(T)) String() string {
 ジェネリクス型のメソッドは型のパラメータを使用することができますが、メソッド自体が型のパラメータを追加することはできません。
 メソッドに型の引数を追加することが有用な場合、適切にパラメータ化されたトップレベル関数を書かなければなりません。
 
-これについては [問題](#パラメータ化されていないメソッド)にてより多くの議論があります。
+これについては [問題点](#パラメータ化されていないメソッド)にてより多くの議論があります。
 
 ### 演算子
 
@@ -1089,84 +1089,63 @@ func F() {
 すべての値メソッドはポインタ型のメソッドセットに含まれているからです。
 この例では、`Set`を値メソッドとして記述できる場合にのみ意味があります。
 
-### Using generic types as unnamed function parameter types
+### 無名関数パラメータ型としてのジェネリクス型の使用
 
-When parsing an instantiated type as an unnamed function parameter
-type, there is a parsing ambiguity.
+インスタンス化された型を無名関数のパラメータ型として解析すると、解析が曖昧になります。
 
 ```Go
 var f func(x(T))
 ```
 
-In this example we don't know whether the function has a single
-unnamed parameter of the instantiated type `x(T)`, or whether this is
-a named parameter `x` of the type `(T)` (written with parentheses).
+この例では，この関数がインスタンス化された型 `x(T)` の単一の無名パラメータを持っているのか，それとも `(T)` 型の名前付きパラメータ `x` (括弧付きで書かれています)なのかはわかりません。
 
-We would prefer that this mean the former: an unnamed parameter of the
-instantiated type `x(T)`.
-This is not actually backward compatible with the current language,
-where it means the latter.
-However, the gofmt program currently rewrites `func(x(T))` to `func(x
-T)`, so `func(x(T))` is very unusual in plain Go code.
+インスタンス化された型`x(T)`の名前のないパラメータであることを意味する前者であることを期待します。
+これは現在の言語では後者を意味しますが、実際には下位互換性はありません。
+しかし、現在のところ、gofmtプログラムは`func(x(T))`を`func(x T)`に書き換えているので、`func(x(T))`はプレーンなGoコードでは非常に珍しい。
 
-Therefore, we propose that the language change so that `func(x(T))`
-now means a single parameter of type `x(T)`.
-This will potentially break some existing programs, but the fix will
-be to simply run gofmt.
-This will potentially change the meaning of programs that write
-`func(x(T))`, that don't use gofmt, and that choose to introduce a
-generic type `x` with the same name as a function parameter with a
-parenthesized type.
-We believe that such programs will be exceedingly rare.
+そこで、`func(x(T))`が`x(T)`型の単一のパラメータを意味するように言語を変更することを提案する。
+これは既存のプログラムを破壊する可能性がありますが、修正は単純にgofmtを実行することになります。
+これは、`func(x(T))`を書き、gofmtを使わず、関数のパラメータと同じ名前で括弧付きの型を持つジェネリクス型`x`を導入するプログラムの意味を変える可能性があります。
+このようなプログラムは非常に稀だと考えています。
 
-Still, this is a risk, and if the risk seems too large we can avoid
-making this change.
+それでも、これはリスクであり、リスクが大きすぎると思われる場合には、この変更を避けることができます。
 
-### Values of type parameters are not boxed
+### 型パラメータの値はボックス化されない
 
-In the current implementations of Go, interface values always hold
-pointers.
-Putting a non-pointer value in an interface variable causes the value
-to be _boxed_.
-That means that the actual value is stored somewhere else, on the heap
-or stack, and the interface value holds a pointer to that location.
+現在のGoの実装では、インターフェースの値は常にポインタを保持しています。
+ポインタではない値をインタフェース変数に入れると、値は_ボックス化(boxed)_になります。
+つまり、実際の値はヒープやスタックのどこか別の場所に保存され、インターフェース値はその場所へのポインタを保持しているということです。
 
-In this design, values of generic types are not boxed.
-For example, let's look back at our earlier example of
-`from.Strings`.
-When it is instantiated with type `Settable`, it returns a value of
-type `[]Settable`.
-For example, we can write
+この設計では、ジェネリクス型の値はボックス化されません。
+例えば、先ほどの`from.Strings`の例を見てみましょう。
+これが`Settable`型でインスタンス化されると、`[]Settable`型の値を返します。
+例えば、次のように書くことができます。
 
 ```Go
-// Settable is an integer type that can be set from a string.
+// Settableは文字列から設定できる整数型です。
 type Settable int
 
-// Set sets the value of *p from a string.
+// Setは、文字列から*pの値を設定します。
 func (p *Settable) Set(s string) (err error) {
-	// same as above
+	// 同上
 }
 
 func F() {
-	// The type of nums is []Settable.
+  // numsの型は[]Settableです。
 	nums, err := from.Strings(Settable)([]string{"1", "2"})
 	if err != nil { ... }
-	// Settable can be converted directly to int.
-	// This will set first to 1.
+	// 設定可能なものは、直接intに変換することができます。
+	// 最初に1がセットされます。
 	first := int(nums[0])
 	...
 }
 ```
 
-When we call `from.Strings` with the type `Settable` we get back a
-`[]Settable` (and an error).
-The elements of that slice will be `Settable` values, which is to say,
-they will be integers.
-They will not be boxed, even though they were created and set by a
-generic function.
+型`Settable`で`from.Strings`を呼び出すと、`[]Settable`が返ってきます(そしてエラー)。
+このスライスの要素は`Settable`の値になります。
+たとえジェネリクス関数によって作成・設定されたものであっても、それらはボックス化されることはありません。
 
-Similarly, when a generic type is instantiated it will have the
-expected types as components.
+同様に、ジェネリクス型がインスタンス化された場合も、コンポーネントとして期待される型を持つことになります。
 
 ```Go
 type Pair(type F1, F2) struct {
@@ -1175,54 +1154,50 @@ type Pair(type F1, F2) struct {
 }
 ```
 
-When this is instantiated, the fields will not be boxed, and no
-unexpected memory allocations will occur.
-The type `Pair(int, string)` is convertible to `struct { first int;
-second string }`.
+これがインスタンス化されると、フィールドはボックス化されず、予期せぬメモリ割り当てが発生しなくなります。
+型`Pair(int, string)`は`struct { first int; second string }`に変換可能です。
 
-### More on type lists
+### 型リストの詳細
 
-Let's return now to type lists to cover some less important details
-that are still worth noting.
-These are not additional rules or concepts, but are consequences of
-how type lists work.
+ここで、型リストの話に戻ります。
+あまり重要ではありませんが注意すべき点がいくつかあります。
+これらは追加の規則や概念ではなく、型リストがどのように動作するかの結果です。
 
-#### Both type lists and methods in constraints
+#### 制約内の型リストとメソッドの両方
 
-A constraint may use both type lists and methods.
+制約は、型リストとメソッドの両方を使用することができます。
 
 ```Go
-// StringableSignedInteger is a type constraint that matches any
-// type that is both 1) defined as a signed integer type;
-// 2) has a String method.
+// StringableSignedIntegerは
+//  1) 符号付き整数型として定義されている型
+//  2) Stringメソッドを持つ型の両方にマッチする型制約
+// です。
 type StringableSignedInteger interface {
 	type int, int8, int16, int32, int64
 	String() string
 }
 ```
 
-This constraint permits any type whose underlying type is one of the
-listed types, provided it also has a `String() string` method.
-It's worth noting that although the `StringableSignedInteger`
-constraint explicitly lists `int`, the type `int` will not itself be
-permitted as a type argument, since `int` does not have a `String`
-method.
-An example of a type argument that would be permitted is `MyInt`,
-defined as:
+この制約は、`String() string`メソッドを持つことを条件に、
+基底型がリストアップされた型のいずれかである任意の型を許可します。
+`StringableSignedInteger`制約は明示的に`int`をリストアップしていますが、
+`int`は`String`メソッドを持たないため、`int`自体は型の引数としては許可されません。
+許可される型引数の例としては、`MyInt`があります。
 
 ```Go
 // MyInt is a stringable int.
+// MyIntは文字列可能なintです。
 type MyInt int
 
-// The String method returns a string representation of mi.
+// String メソッドは、mi の文字列表現を返します。
 func (mi MyInt) String() string {
 	return fmt.Sprintf("MyInt(%d)", mi)
 }
 ```
 
-#### Composite types in constraints
+#### 制約の複合型
 
-A type in a constraint may be a type literal.
+制約内の型は、型リテラルである場合があります。
 
 ```Go
 type byteseq interface {
@@ -1230,72 +1205,59 @@ type byteseq interface {
 }
 ```
 
-The usual rules apply: the type argument for this constraint may be
-`string` or `[]byte` or a type defined as one of those types; a
-generic function with this constraint may use any operation permitted
-by both `string` and `[]byte`.
+通常のルールが適用されます。この制約の型の引数には`string`や`[]byte`、あるいはこれらの型のいずれかで定義された型を指定することができます。
 
-The `byteseq` constraint permits writing generic functions that work
-for either `string` or `[]byte` types.
+この制約を持つジェネリクス関数は、`string`と`[]byte`の両方の型で許可されている操作を使用することができます。
 
 ```Go
-// Join concatenates the elements of its first argument to create a
-// single value. sep is placed between elements in the result.
-// Join works for string and []byte types.
+// Joinは第1引数の要素を連結して1つの値を作成します。
+// Joinはstringと[]byteで動作します。
 func Join(type T byteseq)(a []T, sep T) (ret T) {
 	if len(a) == 0 {
-		// Use the result parameter as a zero value;
-		// see discussion of zero value in the Issues section.
+		// resultパラメータをゼロ値として使用します。
+		// 問題セクションのゼロ値の説明を参照してください。
 		return ret
 	}
 	if len(a) == 1 {
-		// We know that a[0] is either a string or a []byte.
-		// We can append either a string or a []byte to a []byte,
-		// producing a []byte. We can convert that []byte to
-		// either a []byte (a no-op conversion) or a string.
+		// a[0]はstringか[]byteであることがわかっています。
+		// stringまたは[]byteを[]byteに追加することができます。
+		// []byteを生成します。この[]byteを[]byteかstringに変換することができます。
 		return T(append([]byte(nil), a[0]...))
 	}
-	// We can call len on sep because we can call len
-	// on both string and []byte.
+  // stringと[]byteの両方でlenを呼び出すことができるので、sepでlenを呼び出すことができます。
 	n := len(sep) * (len(a) - 1)
 	for _, v := range a {
-		// Another case where we call len on string or []byte.
+		// stringや[]byteに対してlenを呼び出す場合もあります。
 		n += len(v)
 	}
 
 	b := make([]byte, n)
-	// We can call copy to a []byte with an argument of
-	// either string or []byte.
+	// stringか[]byteのどちらかの引数で[]byteへのコピーを呼び出すことができます。
 	bp := copy(b, a[0])
 	for _, s := range a[1:] {
 		bp += copy(b[bp:], sep)
 		bp += copy(b[bp:], s)
 	}
-	// As above, we can convert b to either []byte or string.
+	// 上記のように、bを[]byteまたはstringに変換することができます。
 	return T(b)
 }
 ```
 
-#### Type parameters in type lists
+#### 型リストの型パラメータ
 
-A type literal in a constraint can refer to type parameters of the
-constraint.
-In this example, the generic function `Map` takes two type parameters.
-The first type parameter is required to have an underlying type that
-is a slice of the second type parameter.
-There are no constraints on the second slice parameter.
+制約の型リテラルは制約の型パラメータを参照することができます。
+この例では、ジェネリクス関数`Map`は2つの型パラメータを取る。
+最初の型パラメータは、2番目の型パラメータのスライスである基底型を持つことが要求されます。
+第２のスライスパラメータには制約はありません。
 
 ```Go
-// SliceConstraint is a type constraint that matches a slice of
-// the type parameter.
+// SliceConstraintは、型パラメータのスライスにマッチする型制約です。
 type SliceConstraint(type T) interface {
 	type []T
 }
 
-// Map takes a slice of some element type and a transformation function,
-// and returns a slice of the function applied to each element.
-// Map returns a slice that is the same type as its slice argument,
-// even if that is a defined type.
+// Map は、ある要素の型と変換関数のスライスを取り、各要素に適用された関数のスライスを返します。
+// Map は、定義された型であっても、スライスの引数と同じ型のスライスを返します。
 func Map(type S SliceConstraint(E), E interface{})(s S, f func(E) E) S {
 	r := make(S, len(s))
 	for i, v := range s {
@@ -1304,32 +1266,28 @@ func Map(type S SliceConstraint(E), E interface{})(s S, f func(E) E) S {
 	return r
 }
 
-// MySlice is a simple defined type.
+MySliceはシンプルに定義された型です。
 type MySlice []int
 
-// DoubleMySlice takes a value of type MySlice and returns a new
-// MySlice value with each element doubled in value.
+// DoubleMySliceはMySlice型の値を取り、
+// 各要素の値が2倍になった新しいMySliceの値を返します。
 func DoubleMySlice(s MySlice) MySlice {
 	v := Map(MySlice, int)(s, func(e int) int { return 2 * e })
-	// Here v has type MySlice, not type []int.
+  // ここでvはMySlice型であって[]int型ではありません。
 	return v
 }
 ```
 
-#### Type conversions
+#### 型変換
 
-In a function with two type parameters `From` and `To`, a value of
-type `From` may be converted to a value of type `To` if all the
-types accepted by `From`'s constraint can be converted to all the
-types accepted by `To`'s constraint.
-If either type parameter does not accept types, then type conversions
-are not permitted.
+`From`と`To`の2つの型パラメータを持つ関数において、
+`From`の制約で受け入れられるすべての型を`To`の制約で受け入れられるすべての型に変換できる場合、
+`From`の型の値を`To`の型の値に変換することができます。
+どちらかの型パラメータが型を受け付けない場合、型変換は許可されません。
 
-This is a consequence of the general rule that a generic function may
-use any operation that is permitted by all types listed in the type
-list.
+これは、ジェネリクス関数は型リストに記載されているすべての型で許可されている操作を使用できるという一般的なルールの結果です。
 
-For example:
+例えば、以下のようになります。
 
 ```Go
 type integer interface {
@@ -1340,25 +1298,24 @@ type integer interface {
 func Convert(type To, From integer)(from From) To {
 	to := To(from)
 	if From(to) != from {
-		panic("conversion out of range")
+		panic("範囲外変換")
 	}
 	return to
 }
 ```
 
-The type conversions in `Convert` are permitted because Go permits
-every integer type to be converted to every other integer type.
+Goはすべての整数型を他のすべての整数型に変換することを許可しているので、`Convert`での型変換は許可されています。
 
-#### Untyped constants
+#### 非型定数
 
-Some functions use untyped constants.
-An untyped constant is permitted with a value of some type parameter
-if it is permitted with every type accepted by the type parameter's
-constraint.
+関数の中には、型なし定数を使用するものがあります。
+型指定されていない定数は、
+型パラメータの制約で受け入れられるすべての型で許可されている場合、
+ある型パラメータの値で許可されます。
 
-As with type conversions, this is a consequence of the general rule
-that a generic function may use any operation that is permitted by all
-types listed in the type list.
+型変換と同様に、
+これは、型リストに記載されているすべての型で、
+許可されている操作をジェネリクス関数が使用できるという一般的なルールの結果です。
 
 ```Go
 type integer interface {
@@ -1368,23 +1325,22 @@ type integer interface {
 
 func Add10(type T integer)(s []T) {
 	for i, v := range s {
-		s[i] = v + 10 // OK: 10 can convert to any integer type
+		s[i] = v + 10 // OK: 10 は任意の整数型に変換できます。
 	}
 }
 
-// This function is INVALID.
+// この関数は無効です。
 func Add1024(type T integer)(s []T) {
 	for i, v := range s {
-		s[i] = v + 1024 // INVALID: 1024 not permitted by int8/uint8
+		s[i] = v + 1024 // 無効: 1024 は int8/uint8 では許可されません。
 	}
 }
 ```
 
-#### Notes on composite types in type lists
+#### 型リストの複合型に関する注意事項
 
-It's not clear that we fully understand the use of composite types in
-type lists.
-For example, consider
+型リストでの複合型の使用を完全に理解しているとは言えません。
+例えば、次のようなことを考えてみましょう。
 
 ```Go
 type structField interface {
@@ -1400,31 +1356,27 @@ func IncrementX(type T structField)(p *T) {
 }
 ```
 
-This constraint on the type parameter of `IncrementX` is such that
-every valid type argument is a struct with a field `x` of some numeric
-type.
-Therefore, it is tempting to say that `IncrementX` is a valid
-function.
-This would mean that the type of `v` is a type based on a type
-parameter, with an implicit constraint of `interface { type int,
-float64, uint64 }`.
-This could get fairly complex, and there may be details here that we
-don't understand.
+この制約は、`IncrementX`の型パラメータに対するもので、
+すべての有効な型の引数は、ある数値型のフィールド`x` を持つ構造体であることを意味します。
+したがって、
+`IncrementX`は有効な関数であると言いたくなります。
+これは、 `v`の型が型パラメータに基づく型であり、
+`interface { type int, float64, uint64 }`という暗黙の制約があることを意味します。
+これはかなり複雑になる可能性があり、
+理解できない詳細があるかもしれません。
 
-The initial implementation may not support composite types in type
-lists at all, although that would make the `Join` example shown
-earlier invalid.
+初期の実装では，型リストの複合型は全くサポートしていないかもしれませんが，
+これでは先ほどの `Join` の例は無効になってしまいます．
 
-#### Type lists in embedded constraints
+#### 埋め込み制約の型リスト
 
-When a constraint embeds another constraint, the type list of the
-final constraint is the intersection of all the type lists involved.
-If there are multiple embedded types, intersection preserves the
-property that any  type argument must satisfy the requirements of all
-embedded types.
+制約が別の制約を埋め込む場合、最終的な制約の型リストは、
+関係するすべての型リストの交点となります。
+複数の埋め込み型がある場合、
+交差は、どの型の引数もすべての埋め込み型の要件を満たさなければならないという特性を保持します。
 
 ```Go
-// Addable is types that support the + operator.
+// Addableは+演算子をサポートする型です。
 type Addable interface {
 	type int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64, uintptr,
@@ -1432,268 +1384,206 @@ type Addable interface {
 		string
 }
 
-// Byteseq is a byte sequence: either string or []byte.
+// Byteseqは、stringまたは[]byteのいずれかのバイト列です。
 type Byteseq interface {
 	type string, []byte
 }
 
-// AddableByteseq is a byte sequence that supports +.
-// This is every type is that is both Addable and Byteseq.
-// In other words, just the type string.
+// AddableByteseqは+をサポートするバイト列です。
+// これは、すべての型がAddableとByteseqの両方に対応しています。
+// つまり、string型だけです。
 type AddableByteseq interface {
 	Addable
 	Byteseq
 }
 ```
 
-#### General notes on type lists
+#### 型リストの一般的な注意事項
 
-It may seem awkward to explicitly list types in a constraint, but it
-is clear both as to which type arguments are permitted at the call
-site, and which operations are permitted by the generic function.
+制約の中で明示的に型を列挙するのは厄介に思われるかもしれませんが、
+呼び出し側でどの型引数が許可されているかと、
+ジェネリクス関数でどの操作が許可されているかの両方が明確になっています。
 
-If the language later changes to support operator methods (there are
-no such plans at present), then constraints will handle them as they
-do any other kind of method.
+演算子メソッドをサポートするように言語が変更された場合（現在のところそのような計画はありません）、
+制約は他の種類のメソッドと同様に演算子メソッドを扱います。
 
-There will always be a limited number of predeclared types, and a
-limited number of operators that those types support.
-Future language changes will not fundamentally change those facts, so
-this approach will continue to be useful.
+予め宣言された型の数は常に限られており、それらの型がサポートする演算子の数も限られています。
+将来の言語の変更によってこれらの事実が根本的に変わることはないので、このアプローチは引き続き有用です。
 
-This approach does not attempt to handle every possible operator.
-It's not clear that it works well for composite types.
-The expectation is that those will be handled using composite types in
-generic function and type declarations, rather than requiring
-composite types as a type argument.
-For example, we expect functions that want to index into a slice to be
-parameterized on the slice element type `T`, and to use parameters or
-variables of type `[]T`.
+このアプローチはすべての演算子を扱おうとはしていません。
+複合型に対してうまく機能するかどうかは明らかではありません。
+予想されるのは、型の引数として複合型を要求するのではなく、
+一般的な関数や型の宣言で複合型を使って処理されることです。
+例えば、スライスにインデックスを追加するような関数は、
+スライス要素の型`T`でパラメータ化され、
+型`[]T`のパラメータや変数を使用することを期待しています。
 
-As shown in the `DoubleMySlice` example above, this approach makes it
-awkward to declare generic functions that accept and return a
-composite type and want to return the same result type as their
-argument type.
-Defined composite types are not common, but they do arise.
-This awkwardness is a weakness of this approach.
+上の `DoubleMySlice` の例で示されているように、このアプローチは、
+複合型を受け入れて返すジェネリクス関数を宣言することを厄介にし、
+引数型と同じ結果型を返したいと考えています。
+定義された複合型は一般的ではありませんが、発生することはあります。
+この厄介さがこのアプローチの弱点です。
 
-### Reflection
+### リフレクション
 
-We do not propose to change the reflect package in any way.
-When a type or function is instantiated, all of the type parameters
-will become ordinary non-generic types.
-The `String` method of a `reflect.Type` value of an instantiated type
-will return the name with the type arguments in parentheses.
-For example, `List(int)`.
+`reflect`パッケージを変更することは提案していません。
+型や関数がインスタンス化されると、すべての型パラメータは通常のジェネリクス型になります。
+インスタンス化された型の `reflect.Type` 値の `String` メソッドは、型の引数を括弧で囲んだ名前を返します。
+例えば、`List(int)`のようになります。
 
-It's impossible for non-generic code to refer to generic code without
-instantiating it, so there is no reflection information for
-uninstantiated generic types or functions.
+非ジェネリクスコードがインスタンス化せずにジェネリクスコードを参照することは不可能なので、
+インスタンス化されていないジェネリクス型や関数のリフレクション情報はありません。
 
-### Implementation
+### 実装
 
-Russ Cox [famously observed](https://research.swtch.com/generic) that
-generics require choosing among slow programmers, slow compilers, or
-slow execution times.
+ラス・コックスは、ジェネリクスは遅いプログラム、遅いコンパイラ、遅い実行時間のいずれかを選択する必要があることを[指摘](https://research.swtch.com/generic)しています。
 
-We believe that this design permits different implementation choices.
-Code may be compiled separately for each set of type arguments, or it
-may be compiled as though each type argument is handled similarly to
-an interface type with method calls, or there may be some combination
-of the two.
+私たちは、この設計は異なる実装の選択を可能にすると考えています。
+コードは型引数のセットごとに別々にコンパイルされるかもしれませんし、各型引数がメソッド呼び出しを伴うインターフェース型と同様に扱われるかのようにコンパイルされるかもしれませんし、その2つの組み合わせがあるかもしれません。
 
-In other words, this design permits people to stop choosing slow
-programmers, and permits the implementation to decide between slow
-compilers (compile each set of type arguments separately) or slow
-execution times (use method calls for each operation on a value of a
-type argument).
+言い換えれば、この設計は、人々が遅いプログラムを選ぶことを止め、
+遅いコンパイラ(型引数の各セットを別々にコンパイルする)か、
+遅い実行時間(型引数の値に対する各操作にメソッド呼び出しを使用する)かを実装が決めることを許可します。
 
-### Summary
+### 要約
 
-While this document is long and detailed, the actual design reduces to
-a few major points.
+このドキュメントは長くて詳細ですが、実際の設計はいくつかの主要なポイントに集約されます。
 
-* Functions and types can have type parameters, which are defined
-  using optional constraints, which are interface types.
-* Constraints describe the methods required and the types permitted
-  for a type argument.
-* Constraints describe the methods and operations permitted for a type
-  parameter.
-* Type inference will often permit omitting type arguments when
-  calling functions with type parameters.
+* 関数や型は型引数を持つことができ、これはオプションの制約を使って定義されたもので、インターフェース型です。
+* 制約は、型の引数に必要なメソッドと許可される型を記述します。
+* 制約は、型パラメータに対して許可されるメソッドと操作を記述します。
+* 型推論では、型パラメータを持つ関数を呼び出す際に、型引数を省略することを許可することがよくあります。
 
-This design is completely backward compatible, except for a suggested
-change in the meaning of `func F(x(T))`.
+このデザインは、`func F(x(T))`の意味の変更が提案されていることを除けば、完全に下位互換性があります。
 
-We believe that this design addresses people's needs for generic
-programming in Go, without making the language any more complex than
-necessary.
+このデザインは、必要以上に言語を複雑にすることなく、
+Goでジェネリクスプログラミングをしたいという人々のニーズに応えていると考えています。
 
-We can't truly know the impact on the language without years of
-experience with this design.
-That said, here are some speculations.
+このデザインが言語に与える影響については、
+長年の経験がなければ本当に知ることはできません。
+とはいえ、以下にいくつかの推測を示します。
 
-#### Complexity
+#### 複雑さ
 
-One of the great aspects of Go is its simplicity.
-Clearly this design makes the language more complex.
+Goの素晴らしい点の一つは、そのシンプルさです。
+この設計は明らかに言語をより複雑にしています。
 
-We believe that the increased complexity is small for people reading
-well written generic code, rather than writing it.
-Naturally people must learn the new syntax for declaring type
-parameters.
-This new syntax, and the new support for type lists in interfaces, are
-the only new syntactic constructs in this design.
-The code within a generic function reads like ordinary Go code, as can
-be seen in the examples below.
-It is an easy shift to go from `[]int` to `[]T`.
-Type parameter constraints serve effectively as documentation,
-describing the type.
+私たちは、優れたジェネリクスのコードを書くのではなく、
+優れたジェネリクスのコードを読んでいる人にとっては、複雑さの増加は小さいと考えています。
+当然のことながら、人々は型パラメータを宣言するための新しい構文を学ばなければなりません。
+この新しい構文と、インターフェイスの型リストの新しいサポートが、このデザインの唯一の新しい構文構成です。
+ジェネリクス関数内のコードは、以下の例にあるように、通常のGoコードのように読めます。
+これは、`[]int`から`[]T`への簡単な移行です。
+型パラメータ制約は、型を記述するための文書として効果的に機能します。
 
-We expect that most packages will not define generic types or
-functions, but many packages are likely to use generic types or
-functions defined elsewhere.
-In the common case, generic functions work exactly like non-generic
-functions: you simply call them.
-Type inference means that you do not have to write out the type
-arguments explicitly.
-The type inference rules are designed to be unsurprising: either the
-type arguments are deduced correctly, or the call fails and requires
-explicit type parameters.
-Type inference uses type identity, with no attempt to resolve two
-types that are similar but not identical, which removes significant
-complexity.
+ほとんどのパッケージはジェネリクス型や関数を定義しないと予想されますが、
+多くのパッケージは他の場所で定義されたジェネリクス型や関数を使用する可能性があります。
+一般的なケースでは、ジェネリクス関数は非ジェネリクス関数と全く同じように動作します。
+型推論は、型の引数を明示的に書き出す必要がないことを意味します。
+型推論のルールは、型の引数が正しく推論されるか、呼び出しに失敗して
+明示的な型パラメータを使用します。
+型推論では、似ているが同一ではない2つの型の解決を試みずに型の同一性を使用します。
 
-Packages using generic types will have to pass explicit type
-arguments.
-The syntax for this is familiar.
-The only change is passing arguments to types rather than only to
-functions.
+ジェネリクス型を使用するパッケージは、明示的な型引数を渡さなければなりません。
+このための構文はよく知られています。
+唯一の変更点は、引数を関数だけに渡すのではなく、型に渡すことです。
 
-In general, we have tried to avoid surprises in the design.
-Only time will tell whether we succeeded.
+基本的に、私たちは設計上の驚きを避けようとしてきました。
+これが成功したかどうかは時がたてばわかります。
 
-#### Pervasiveness
+#### 広播性
 
-We expect that a few new packages will be added to the standard
-library.
-A new `slices` packages will be similar to the existing bytes and
-strings packages, operating on slices of any element type.
-New `maps` and `chans` packages will provide simple algorithms that
-are currently duplicated for each element type.
-A `set` package may be added.
+標準ライブラリにはいくつかの新しいパッケージが追加される予定です。
+新しい`slices`パッケージは、既存のbytesやstringsパッケージと似たようなもので、任意の要素型のスライスに対して操作することができます。
+新しい`maps`と`chans`パッケージは、現在各要素型に対して重複している単純なアルゴリズムを提供します。
+`set`パッケージが追加されるかもしれません。
 
-A new `constraints` package will provide standard constraints, such as
-constraints that permit all integer types or all numeric types.
+新しい`constraints`パッケージは、すべての整数型やすべての数値型を許可する制約などの標準的な制約を提供します。
 
-Packages like `container/list` and `container/ring`, and types like
-`sync.Map` and `sync/atomic.Value`, will be updated to be compile-time
-type-safe, either using new names or new versions of the packages.
+`container/list`や`container/ring`のようなパッケージや`sync.Map`や`sync/atomic.Value`のような型は、
+新しい名前か新しいバージョンのパッケージを使って、コンパイル時に型安全になるように更新されます。
 
-The `math` package will be extended to provide a set of simple
-standard algorithms for all numeric types, such as the ever popular
-`Min` and `Max` functions.
+`math`パッケージは、人気のある`Min`や`Max`関数のような、
+すべての数値型のためのシンプルな標準アルゴリズムのセットを提供するように拡張されます。
 
-We may add generic variants to the `sort` package.
+また、`sort`パッケージにジェネリクス変数を追加するかもしれません。
 
-It is likely that new special purpose compile-time type-safe container
-types will be developed.
+新しい特別な目的のコンパイル時型安全コンテナ型が開発される可能性があります。
 
-We do not expect approaches like the C++ STL iterator types to become
-widely used.
-In Go that sort of idea is more naturally expressed using an interface
-type.
-In C++ terms, using an interface type for an iterator can be seen as
-carrying an abstraction penalty, in that run-time efficiency will be
-less than C++ approaches that in effect inline all code; we believe
-that Go programmers will continue to find that sort of penalty to be
-acceptable.
+C++のSTLイテレータ型のようなアプローチが広く使われるようになることは期待していません。
+Goでは、この種のアイデアはインターフェイス型を使用してより自然に表現されます。
+C++の用語では、イテレータにインターフェイス型を使用することは、抽象化のペナルティがあると考えられます。
+つまり、実行時の効率は、事実上すべてのコードをインライン化するC++のアプローチよりも低くなります。
 
-As we get more container types, we may develop a standard `Iterator`
-interface.
-That may in turn lead to pressure to modify the language to add some
-mechanism for using an `Iterator` with the `range` clause.
-That is very speculative, though.
+コンテナの型が増えれば、標準的な`Iterator`インターフェイスを開発することになるかもしれません。
+そうなると、言語を変更して`range`句で`Iterator`を使用するメカニズムを追加するように圧力をかけることになるかもしれません。
+しかし、これは非常に憶測に基づいたものです。
 
-#### Efficiency
+#### 効率性
 
-It is not clear what sort of efficiency people expect from generic
-code.
+人々がジェネリクスコードにどのような種類の効率性を期待しているかは明らかではありません。
 
-Generic functions, rather than generic types, can probably be compiled
-using an interface-based approach.
-That will optimize compile time, in that the function is only compiled
-once, but there will be some run time cost.
+ジェネリクス型ではなく、ジェネリクス関数は、
+おそらくインターフェースベースのアプローチを使ってコンパイルすることができます。
+これは、関数が一度だけコンパイルされるという点で、
+コンパイル時間を最適化しますが、実行時間のコストがかかります。
 
-Generic types may most naturally be compiled multiple times for each
-set of type arguments.
-This will clearly carry a compile time cost, but there shouldn't be
-any run time cost.
-Compilers can also choose to implement generic types similarly to
-interface types, using special purpose methods to access each element
-that depends on a type parameter.
+一般的な型は当然のことながら、
+型の引数のセットごとに複数回コンパイルされることになります。
+これは明らかにコンパイル時間のコストがかかりますが、
+実行時間のコストは発生しないはずです。
+コンパイラは、型パラメータに依存する各要素にアクセスするための特別なメソッドを使用して、
+インターフェース型と同様にジェネリクス型を実装することもできます。
 
-Only experience will show what people expect in this area.
+この分野で人々が何を期待しているかは経験だけが示すでしょう。
 
-#### Omissions
+#### 見落とし
 
-We believe that this design covers the basic requirements for
-generic programming.
-However, there are a number of programming constructs that are not
-supported.
+この設計は、ジェネリクスプログラミングの基本的な要件をカバーしていると考えています。
+しかし、サポートされていないプログラミング構造がいくつかあります。
 
-* No specialization.
-  There is no way to write multiple versions of a generic function
-  that are designed to work with specific type arguments.
-* No metaprogramming.
-  There is no way to write code that is executed at compile time to
-  generate code to be executed at run time.
-* No higher level abstraction.
-  There is no way to speak about a function with type arguments other
-  than to call it or instantiate it.
-  There is no way to speak about a generic type other than to
-  instantiate it.
-* No general type description.
-  In order to use operators in a generic function, constraints list
-  specific types, rather than describing the characteristics that a
-  type must have.
-  This is easy to understand but may be limiting at times.
-* No covariance or contravariance of function parameters.
-* No operator methods.
-  You can write a generic container that is compile-time type-safe,
-  but you can only access it with ordinary methods, not with syntax
-  like `c[k]`.
-* No currying.
-  There is no way to specify only some of the type arguments, other
-  than by using a helper function or a wrapper type.
-* No variadic type parameters.
-  There is no support for variadic type parameters, which would permit
-  writing a single generic function that takes different numbers of
-  both type parameters and regular parameters.
-* No adaptors.
-  There is no way for a constraint to define adaptors that could be
-  used to support type arguments that do not already implement the
-  constraint, such as, for example, defining an `==` operator in terms
-  of an `Equal` method, or vice-versa.
-* No parameterization on non-type values such as constants.
-  This arises most obviously for arrays, where it might sometimes be
-  convenient to write `type Matrix(type n int) [n][n]float64`.
-  It might also sometimes be useful to specify significant values for
-  a container type, such as a default value for elements.
+* 専門化されていません。
+  特定の型の引数で動作するように設計されたジェネリクス関数の複数のバージョンを書く方法はありません。
+* メタプログラミングがない。
+  コンパイル時に実行されるコードを、
+  実行時に実行されるコードを生成するために書く方法がありません。
+* より高いレベルの抽象化がない。
+  型引数を持つ関数を呼び出すかインスタンス化する以外に、
+  型引数を持つ関数について語る方法がありません。
+  一般的な型については、インスタンス化する以外の方法はありません。
+* 一般的な型の記述がありません。
+  ジェネリクス関数で演算子を使うために、
+  制約は、型が持たなければならない特性を記述するのではなく、
+  特定の型をリストアップしています。
+  これは理解しやすいですが、時には制限されることもあります。
+* 関数パラメータの共分散や逆分散はありません。
+* 演算子メソッドはありません。
+  コンパイル時に型安全なジェネリクスコンテナを書くことはできますが、
+  それにアクセスできるのは通常のメソッドのみで、`c[k]`のような構文は使えません。
+* カリーはありません。
+  ヘルパー関数やラッパー型を使う以外に，
+  型引数の一部だけを指定する方法はありません．
+* 可変型の型パラメータがありません。
+  これは，型パラメータと通常のパラメータの両方を異なる数だけ取る単一のジェネリクス関数を書くことを可能にします．
+* アダプタがありません．
+  例えば、`Equal` メソッドの代わりに `==` 演算子を定義したり、
+  制約が実装されていない型引数をサポートするために使用できるアダプタを定義する方法はありません。
+* 定数のような型を持たない値のパラメータ化は行いません。
+  これは最も明らかに配列の場合に発生しますが，`type Matrix(type n int) [n][n]float64` と書いておくと便利な場合があります。
+  また，要素のデフォルト値のように，コンテナ型に重要な値を指定しておくと便利な場合もあります．
 
-#### Issues
 
-There are some issues with this design that deserve a more detailed
-discussion.
-We think these issues are relatively minor compared to the design as a
-whole, but they still deserve a complete hearing and discussion.
+#### 問題点
 
-##### The zero value
+このデザインには、
+より詳細な議論に値するいくつかの問題点があります。
+これらの問題はデザイン全体に比べれば比較的軽微なものですが、
+それでも完全なヒアリングと議論に値すると考えています。
 
-This design has no simple expression for the zero value of a type
-parameter.
-For example, consider this implementation of optional values that uses
-pointers:
+##### ゼロ値
+
+この設計では、型パラメータのゼロ値に対する単純な表現がありません。
+例えば、ポインタを使用するオプション値のこの実装を考えてみましょう。
 
 ```Go
 type Optional(type T) struct {
@@ -1709,64 +1599,43 @@ func (o Optional(T)) Val() T {
 }
 ```
 
-In the case where `o.p == nil`, we want to return the zero value of
-`T`, but we have no way to write that.
-It would be nice to be able to write `return nil`, but that wouldn't
-work if `T` is, say, `int`; in that case we would have to write
-`return 0`.
-And, of course, there is no way to write a constraint to support
-either `return nil` or `return 0`.
+`o.p == nil`の場合、`T`の値を0にして返したいのですが、それを書く方法がありません。
+`return nil`を書けたらいいのですが、`T`が例えば`int`の場合にはうまくいきません。
+また、もちろん、`return nil`や`return 0`をサポートする制約を書く方法はありません。
 
-Some approaches to this are:
+いくつかのアプローチがあります。
 
-* Use `var zero T`, as above, which works with the existing design
-  but requires an extra statement.
-* Use `*new(T)`, which is cryptic but works with the existing
-  design.
-* For results only, name the result parameter `_`, and use a naked
-  `return` statement to return the zero value.
-* Extend the design to permit using `nil` as the zero value of any
-  generic type (but see [issue 22729](https://golang.org/issue/22729)).
-* Extend the design to permit using `T{}`, where `T` is a type
-  parameter, to indicate the zero value of the type.
-* Change the language to permit using `_` on the right hand of an
-  assignment (including `return` or a function call) as proposed in
-  [issue 19642](https://golang.org/issue/19642).
-* Change the language to permit `return ...` to return zero values of
-  the result types, as proposed in
-  [issue 21182](https://golang.org/issue/21182).
+* `var zero T`は既存のデザインで動作しますが、追加の文が必要です。
+* `*new(T)`は暗号化されていますが、既存のデザインで動作します。
+* 結果のみの場合は、結果パラメータに`_`という名前を付け、ゼロ値を返すために裸の`return`文を使用します。
+* 一般的な型のゼロ値として `nil` を使用できるようにデザインを拡張しました (ただし、[issue 22729](https://golang.org/issue/22729) を参照してください)。
+* 設計を拡張し、`T{}` (`T` は型パラメータ`T`) は型のゼロ値を示すようにしました。
+* [issue19642](https://golang.org/issue/19642)で提案されているように、代入(`return`や関数呼び出しを含む)の右手に`_`を使用できるように言語を変更しました。
+* [issue21182](https://golang.org/issue/21182)で提案されているように、結果型の値をゼロにするために`return ...`を使用することを許可するように言語を変更しました。
 
-We feel that more experience with this design is needed before
-deciding what, if anything, to do here.
+私たちは、ここで何をすべきかを決定する前に、
+このデザインについてより多くの経験が必要であると感じています。
 
-##### Lots of Irritating Silly Parentheses
+##### 括弧多すぎてだるい
 
-Calling a function with type parameters requires an additional list of
-type arguments if the type arguments can not be inferred.
-If the function returns a function, and we call that, we get still
-more parentheses.
+型引数を持つ関数を呼び出すと、型引数が推論できない場合、型引数の追加リストが必要になります。
+関数が関数を返してきて、それを呼び出すと、さらに多くの括弧を得ることになります。
 
 ```Go
 	F(int, float64)(x, y)(s)
 ```
 
-We experimented with other syntaxes, such as using a colon to separate
-the type arguments from the regular arguments.
-The current design seems to us to be the nicest, but perhaps something
-better is possible.
+型の引数と正規の引数を分離するためにコロンを使用するなど、他の構文で実験を行いました。
+現在のデザインが一番いいように思えますが、もっといいものができるかもしれません。
 
-##### Defined composite types
+##### 定義された複合タイプ
 
-As [discussed above](#Type-parameters-in-type-lists), an extra type
-parameter is required for a function to take, as an argument, a
-defined type whose underlying type is a composite type, and to return
-the same defined type as a result.
+[前述](#型リストの型パラメータ)のように、関数が引数として、基底型が複合型である定義済み型を取り、その結果として同じ定義済み型を返すためには、余分な型パラメータが必要となります。
 
-For example, this function will map a function across a slice.
+例えば、この関数はスライスをまたいで関数をマッピングします。
 
 ```Go
-// Map applies f to each element of s, returning a new slice
-// holding the results.
+// マップはsの各要素にfを適用し、結果を保持する新しいスライスを返します。
 func Map(type T)(s []T, f func(T) T) []T {
 	r := make([]T, len(s))
 	for i, v := range s {
@@ -1776,39 +1645,31 @@ func Map(type T)(s []T, f func(T) T) []T {
 }
 ```
 
-However, when called on a defined type, it will return a slice of the
-element type of that type, rather than the defined type itself.
+ただし、定義された型で呼び出された場合は、定義された型そのものではなく、その型の要素型のスライスを返します。
 
 ```Go
-// MySlice is a defined type.
+// MySliceは定義された型です。
 type MySlice []int
 
-// DoubleMySlice returns a new MySlice whose elements are twice
-// that of the corresponding elements of s.
+// DoubleMySliceは、sの対応する要素の2倍の要素を持つ新しいMySliceを返します。
 func DoubleMySlice(s MySlice) MySlice {
 	s2 := Map(s, func(e int) int { return 2 * e })
-	// Here s2 is type []int, not type MySlice.
+	// ここでs2は[]int型であり，MySlice型ではありません．
 	return MySlice(s2)
 }
 ```
 
-As [discussed above](#Type-parameters-in-type-lists), this can be
-avoided by using an extra type parameter for `Map`, and using
-constraints that describe the required relationship between the slice
-and element types.
-This works but is awkward.
+[前述](#型リストの型パラメータ)のように、これは`Map`に余分な型パラメータを使用し、
+スライスと要素の型の間の必要な関係を記述する制約を使用することで回避できます。
+これは動作しますが、厄介です。
 
-##### Identifying the matched predeclared type
+##### 一致した宣言済み型の識別
 
-The design doesn't provide any way to test the underlying type matched
-by a type argument.
-Code can test the actual type argument through the somewhat awkward
-approach of converting to an empty interface type and using a type
-assertion or a type switch.
-But that lets code test the actual type argument, which is not the
-same as the underlying type.
+この設計では、型の引数にマッチする基本的な型をテストする方法は提供されていません。
+コードは、空のインターフェイス型に変換して、型アサーションや型スイッチを使うというやや厄介なアプローチで実際の型の引数をテストすることができます。
+しかし、これでは実際の型の引数をテストすることができますが、これは基礎となる型とは異なります。
 
-Here is an example that shows the difference.
+ここに違いを示す例があります。
 
 ```Go
 type Float interface {
@@ -1825,7 +1686,7 @@ func NewtonSqrt(type T Float)(v T) T {
 	default:
 		panic(fmt.Sprintf("unexpected type %T", v))
 	}
-	// Code omitted.
+	// コードは省略されています。
 }
 
 type MyFloat float32
@@ -1833,59 +1694,45 @@ type MyFloat float32
 var G = NewtonSqrt(MyFloat(64))
 ```
 
-This code will panic when initializing `G`, because the type of `v` in
-the `NewtonSqrt` function will be `MyFloat`, not `float32` or
-`float64`.
-What this function actually wants to test is not the type of `v`, but
-the type that `v` matched in the constraint.
+なぜなら、`NewtonSqrt`関数の`v`の型は`float32`や`float64`ではなく`MyFloat`になるからです。
+この関数が実際にテストしたいのは`v`の型ではなく、
+制約の中で`v`がマッチした型です．
 
-One way to handle this would be to permit type switches on the type
-`T`, with the proviso that the type `T` would always match a type
-defined in the constraint.
-This kind of type switch would only be permitted if the constraint
-lists explicit types, and only types listed in the constraint would be
-permitted as cases.
+これを処理する1つの方法として，型`T`の型スイッチを許可することが考えられますが，
+この場合，型`T`は制約で定義された型に常にマッチします．
+この種の型スイッチは、制約が明示的な型を列挙している場合にのみ許可され、
+制約に列挙されている型のみがケースとして許可されます。
 
-##### No way to express convertibility
+##### 収斂性を表現する方法がない
 
-The design has no way to express convertibility between two different
-type parameters.
-For example, there is no way to write this function:
+このデザインでは、2つの異なる型のパラメータ間の収束性を表現する方法がありません。
+例えば、この関数を書く方法がありません。
 
 ```Go
-// Copy copies values from src to dst, converting them as they go.
-// It returns the number of items copied, which is the minimum of
-// the lengths of dst and src.
-// This implementation is INVALID.
+// 値を src から dst にコピーし，変換しながらコピーします．
+// コピーされた項目の数を返します．
+// この実装は不正です。
 func Copy(type T1, T2)(dst []T1, src []T2) int {
 	for i, x := range src {
 		if i > len(dst) {
 			return i
 		}
-		dst[i] = T1(x) // INVALID
+		dst[i] = T1(x) // 不正
 	}
 	return len(src)
 }
 ```
 
-The conversion from type `T2` to type `T1` is invalid, as there is no
-constraint on either type that permits the conversion.
-Worse, there is no way to write such a constraint in general.
-In the particular case that both `T1` and `T2` can require some type
-list, then this function can be written as described earlier when
-discussing [type conversions using type lists](#Type-conversions).
-But, for example, there is no way to write a constraint for the case
-in which `T1` is an interface type and `T2` is a type that implements
-that interface.
+型`T2`から型`T1`への変換は，どちらの型にも変換を許可する制約がないため，無効です。
+さらに悪いことに、一般的にそのような制約を書く方法はありません。
+`T1`と`T2`の両方が何らかの型リストを必要とするような特殊なケースでは，この関数は[型リストを用いた型変換](#型変換)で述べたように書くことができます。
+しかし、例えば、`T1`がインタフェース型であり、`T2`がそのインタフェースを実装した型である場合の制約を書く方法はありません。
 
-It's worth noting that if `T1` is an interface type then this can be
-written using a conversion to the empty interface type and a type
-assertion, but this is, of course, not compile-time type-safe.
+`T1`がインタフェース型である場合、空のインタフェース型への変換と型アサーションを用いて制約を書くことができますが、これはもちろんコンパイル時の型安全ではありません。
 
 ```Go
-// Copy copies values from src to dst, converting them as they go.
-// It returns the number of items copied, which is the minimum of
-// the lengths of dst and src.
+// 値を src から dst にコピーし，変換しながらコピーします．
+// コピーされたアイテムの数を返します．
 func Copy(type T1, T2)(dst []T1, src []T2) int {
 	for i, x := range src {
 		if i > len(dst) {
@@ -1897,34 +1744,29 @@ func Copy(type T1, T2)(dst []T1, src []T2) int {
 }
 ```
 
-##### No parameterized methods
+##### パラメータ化されたメソッドがない
 
-This design draft does not permit methods to declare type parameters
-that are specific to the method.
-The receiver may have type parameters, but the method not add any type
-parameters.
+このドラフトデザインでは、メソッドに固有の型パラメータを宣言することを許可しません。
+レシーバは型パラメータを持つことができますが、メソッドは型パラメータを追加しません。
 
-In Go, one of the main roles of methods is to permit types to
-implement interfaces.
-It is not clear whether it is reasonably possible to permit
-parameterized methods to implement interfaces.
-For example, consider this code, which uses the obvious syntax for
-parameterized methods.
-This code uses multiple packages to make the problem clearer.
+Goでは、メソッドの主な役割の一つは、
+型がインターフェースを実装することを許可することです。
+パラメータ化されたメソッドがインターフェースを実装することを許可することが合理的に可能であるかどうかは明らかではありません。
+例えば、パラメータ化されたメソッドのために明白な構文を使用している次のコードを考えてみましょう。
+このコードでは、問題をより明確にするために複数のパッケージを使用しています。
 
 ```Go
 package p1
 
-// S is a type with a parameterized method Identity.
+// Sは、パラメータ化されたメソッドIdentityを持つ型です。
 type S struct{}
 
-// Identity is a simple identity method that works for any type.
+// Identity は、どのようなタイプでも動作するシンプルなアイデンティティメソッドです。
 func (S) Identity(type T)(v T) T { return v }
 
 package p2
 
-// HasIdentity is an interface that matches any type with a
-// parameterized Identity method.
+// HasIdentity は、パラメータ化された Identity メソッドで任意の型にマッチするインターフェイスです。
 type HasIdentity interface {
 	Identity(type T)(T) T
 }
@@ -1933,9 +1775,8 @@ package p3
 
 import "p2"
 
-// CheckIdentity checks the Identity method if it exists.
-// Note that although this function calls a parameterized method,
-// this function is not itself parameterized.
+// CheckIdentity は、Identity メソッドが存在するかどうかをチェックします。
+// この関数はパラメータ化されたメソッドを呼び出しますが、この関数自体はパラメータ化されていないことに注意してください。
 func CheckIdentity(v interface{}) {
 	if vi, ok := v.(p2.HasIdentity); ok {
 		if got := vi.Identity(int)(0); got != 0 {
@@ -1951,250 +1792,195 @@ import (
 	"p3"
 )
 
-// CheckSIdentity passes an S value to CheckIdentity.
+// CheckSIdentityは、CheckIdentityにSを渡します。
 func CheckSIdentity() {
 	p3.CheckIdentity(p1.S{})
 }
 ```
 
-In this example, we have a type `S` with a parameterized method and a
-type `HasIdentity` that also has a parameterized method.
-`S` implements `HasIdentity`.
-Therefore, the function `p3.CheckIdentity` can call `vi.Identity` with
-an `int` argument, which in this example will be a call to
-`S.Identity(int)`.
-But package p3 does not know anything about the type `p1.S`.
-There may be no other call to `S.Identity` elsewhere in the program.
-We need to instantiate `S.Identity(int)` somewhere, but how?
+この例では、パラメータ化されたメソッドを持つ型`S`とパラメータ化されたメソッドを持つ型`HasIdentity`があります。
+`S`は`HasIdentity`を実装しています。
+したがって、関数`p3.CheckIdentity`は`vi.Identity`を`int`引数で呼び出すことができ、
+この例では`S.Identity(int)`の呼び出しとなります。
+しかし、`package p3`は`p1.S`の型について何も知りません。
+プログラムのどこか他の場所で`S.Identity`を呼び出すことはないかもしれません。
+どこかで`S.Identity(int)`のインスタンスを作成する必要があるが、どうやって作成するのでしょうか。
 
-We could instantiate it at link time, but in the general case that
-requires the linker to traverse the complete call graph of the program
-to determine the set of types that might be passed to `CheckIdentity`.
-And even that traversal is not sufficient in the general case when
-type reflection gets involved, as reflection might look up methods
-based on strings input by the user.
-So in general instantiating parameterized methods in the linker might
-require instantiating every parameterized method for every possible
-type argument, which seems untenable.
+リンク時にインスタンス化することもできるが、一般的な場合、
+リンカがプログラムの完全な呼び出しグラフを走査して、
+`CheckIdentity`に渡される可能性のある型のセットを決定する必要があります。
+また、型反映が関与する一般的なケースでは、
+型反映はユーザが入力した文字列に基づいてメソッドを検索する可能性があるため、このような探索だけでは十分ではありません。
+そのため、一般的にリンカでパラメータ化されたメソッドをインスタンス化するには、
+すべての可能な型の引数に対してすべてのパラメータ化されたメソッドをインスタンス化する必要があるかもしれません。
 
-Or, we could instantiate it run time.
-In general this means using some sort of JIT, or compiling the code to
-use some sort of reflection based approach.
-Either approach would be very complex to implement, and would be
-surprisingly slow at run time.
+あるいは、実行時にインスタンス化することもできます。
+一般的には、これはある種のJITを使用するか、ある種のリフレクションベースのアプローチを使用するためにコードをコンパイルすることを意味します。
+どちらの方法も実装が非常に複雑で、実行時には驚くほど遅くなります。
 
-Or, we could decide that parameterized methods do not, in fact,
-implement interfaces, but then it's much less clear why we need
-methods at all.
-If we disregard interfaces, any parameterized method can be
-implemented as a parameterized function.
+あるいは、パラメータ化されたメソッドは実際にはインターフェイスを実装しないと決めることもできますが、
+なぜメソッドが必要なのかはあまり明確ではありません。
+インターフェースを無視すれば、
+パラメータ化されたメソッドはパラメータ化された関数として実装することができます。
 
-So while parameterized methods seem clearly useful at first glance, we
-would have to decide what they mean and how to implement that.
+ですから、パラメータ化されたメソッドは一見明らかに便利そうに見えますが、
+それが何を意味するのか、それをどのように実装するのかを決めなければならないでしょう。
 
-#### Discarded ideas
+#### 捨てられたアイデア
 
-This design is not perfect, and it will be further refined as we gain
-experience with it.
-That said, there are many ideas that we've already considered in
-detail.
-This section lists some of those ideas in the hopes that it will help
-to reduce repetitive discussion.
-The ideas are presented in the form of a FAQ.
+このデザインは完璧なものではなく、経験を積んでいく中でさらに洗練されていきます。
+そうは言っても、すでに詳細に検討したアイデアはたくさんあります。
+このセクションでは、反復的な議論を減らすために役立つことを期待して、
+それらのアイデアのいくつかをリストアップします。
+これらのアイデアはFAQの形で紹介されています。
 
-##### What happened to contracts?
+##### コントラクト(contracts)はどうなったの？
 
-An earlier draft design of generics implemented constraints using a
-new language construct called contracts.
-Type lists appeared only in contracts, rather than on interface
-types.
-However, many people had a hard time understanding the difference
-between contracts and interface types.
-It also turned out that contracts could be represented as a set of
-corresponding interfaces; thus there was no loss in expressive power
-without contracts.
-We decided to simplify the approach to use only interface types.
+型リストは、インターフェース型ではなく、コントラクトにのみ現れました。
+しかし、多くの人は、コントラクトとインタフェース型の違いを理解するのに苦労しました。
+また、コントラクトは対応するインタフェースの集合として表現できることが判明し、
+コントラクトがなくても表現力が損なわれることはありませんでした。
+そこで、インタフェース型だけを使うようにアプローチを単純化することにしました。
 
-##### Why not use methods instead of type lists?
+##### なぜ型リストではなくメソッドを使わないのですか？
 
 _Type lists are weird._
-_Why not write methods for all operators?_
+_型リストはおかしい_
+_なぜすべての演算子にメソッドを書かないのですか？_
 
-It is possible to permit operator tokens as method names, leading to
-methods such as `+(T) T`.
-Unfortunately, that is not sufficient.
-We would need some mechanism to describe a type that matches any
-integer type, for operations such as shifts `<<(integer) T` and
-indexing `[](integer) T` which are not restricted to a single int
-type.
-We would need an untyped boolean type for operations such as `==(T)
-untyped bool`.
-We would need to introduce new notation for operations such as
-conversions, or to express that one may range over a type, which would
-likely require some new syntax.
-We would need some mechanism to describe valid values of untyped
-constants.
-We would have to consider whether support for `<(T) bool` means that a
-generic function can also use `<=`, and similarly whether support for
-`+(T) T` means that a function can also use `++`.
-It might be possible to make this approach work but it's not
-straightforward.
-The approach used in this design seems simpler and relies on only one
-new syntactic construct (type lists) and one new name (`comparable`).
+演算子トークンをメソッド名として許可することも可能で、`+(T) T`のようなメソッドを導くことができます。
+残念ながら、これだけでは十分ではありません。
+シフト `<<(integer) T` やインデックス `[](integer) T` のような、単一のint型に限定されない演算に対して、任意の整数型にマッチする型を記述する機構が必要になります。
+また、`==(T) untyped bool`のような演算には、型なしのboolean型が必要になります。
+変換のような操作や，型の上に範囲があることを表現するために，新しい記法を導入する必要がありますが，これには新しい構文が必要になるでしょう．
+型なし定数の有効な値を記述するメカニズムが必要になるでしょう。
+`<(T) bool` をサポートすることは、ジェネリクス関数が `<=` を使用できることを意味し、
+同様に `+(T) T` をサポートすることは、
+関数が `++` を使用できることを意味するかどうかを検討しなければなりません。
+このアプローチを実現することは可能かもしれませんが、一筋縄ではいきません。
+このデザインで使われているアプローチはよりシンプルで、
+1つの新しい構文構成(型リスト)と1つの新しい名前(`comparable`)だけに依存しています。
 
-##### Why not put type parameters on packages?
+##### なぜパッケージに型パラメータを付けないのですか？
 
-We investigated this extensively.
-It becomes problematic when you want to write a `list` package, and
-you want that package to include a `Transform` function that converts
-a `List` of one element type to a `List` of another element type.
-It's very awkward for a function in one instantiation of a package to
-return a type that requires a different instantiation of the same
-package.
+私たちはこれを広範囲に調査しました。
+`list`パッケージを書きたいときに、ある要素型の`List`を別の要素型の`List`に変換する関数`Transform`をそのパッケージに含ませたいときに問題になります。
+あるパッケージのあるインスタンスの関数が、同じパッケージの別のインスタンスを必要とする型を返すのは非常に厄介です。
 
-It also confuses package boundaries with type definitions.
-There is no particular reason to think that the uses of generic types
-will break down neatly into packages.
-Sometimes they will, sometimes they won't.
+また、パッケージの境界と型の定義を混同してしまいます。
+一般的な型の使用がパッケージにきれいに分解されると考える特別な理由はありません。
+そうなることもあれば、そうならないこともあります。
 
-##### Why not use the syntax `F<T>` like C++ and Java?
+##### C++やJavaのように `F<T>` という構文を使うのはどうでしょうか？
 
-When parsing code within a function, such as `v := F<T>`, at the point
-of seeing the `<` it's ambiguous whether we are seeing a type
-instantiation or an expression using the `<` operator.
-Resolving that requires effectively unbounded lookahead.
-In general we strive to keep the Go parser efficient.
+関数内のコードを解析する際、`v:=F<T>`のように`<`を見る時点で、型のインスタンス化を見ているのか`<`演算子を使った式を見ているのかが曖昧になってしまいます。
+これを解決するためには、実質的に束縛されていないルックヘッドが必要です。
+一般的に、私たちはGoパーサを効率的に保つように努力しています。
 
-##### Why not use the syntax `F[T]`?
+##### なぜ構文 `F[T]` を使わないのですか？
 
-When parsing a type declaration `type A [T] int` it's ambiguous
-whether this is a generic type defined (uselessly) as `int` or whether
-it is an array type with `T` elements.
-However, this could be addressed by requiring `type A [type T] int`
-for a generic type.
+型宣言`type A [T] int`を解析する際に、これが`int`として定義された(無駄に)ジェネリクス型なのか、それとも`T`要素を持つ配列型なのかが曖昧になります。
+しかし、これはジェネリクス型に `type A [type T] int` を要求することで対処できます。
 
-Parsing declarations like `func f(A[T]int)` (a single parameter of
-type `[T]int`) and `func f(A[T], int)` (two parameters, one of type
-`A[T]` and one of type `int`) show that some additional parsing
-lookahead is required.
-This is solvable but adds parsing complexity.
+`func f(A[T]int)`(単一のパラメータで`[T]int`型のもの)や`func f(A[T], int)`(2つのパラメータで`A[T]`型と`int`型のもの)のような構文解析宣言は、
+追加の構文解析ルックヘッドが必要であることを示しています。
+これは解決可能ですが，解析が複雑になります．
 
-The language generally permits a trailing comma in a comma-separated
-list, so `A[T,]` should be permitted if `A` is a generic type, but
-normally would not be permitted for an index expression.
-However, the parser can't know whether `A` is a generic type or a
-value of slice, array, or map type, so this parse error can not be
-reported until after type checking is complete.
-Again, solvable but complicated.
+この言語は一般的にカンマで区切られたリストの最後のカンマを許可しているので、
+`A` がジェネリクス型の場合は `A[T,]` を許可しなければなりませんが
+は通常、インデックス式では許可されません。
+しかし、パーサは `A` がジェネリクス型なのかスライス型、配列型、マップ型の値なのかを知ることができないので、型チェックが完了するまでこの解析エラーを報告することができません。
+繰り返しになりますが、解決は可能ですが複雑です。
 
-More generally, we felt that the square brackets were too intrusive on
-the page and that parentheses were more Go like.
-We will reevaluate this decision as we gain more experience.
+より一般的には、`[]`はページに押し付けがましく、`()`の方がGoらしいと感じました。
+この決定については、今後の経験を積んでいく中で再評価していきます。
 
-##### Why not use `F«T»`?
+##### なぜ`F«T»`を使わないのか？
 
-We considered it but we couldn't bring ourselves to require
-non-ASCII.
+検討しましたが、非ASCIIを要求する気にはなれませんでした。
 
-##### Why not define constraints in a builtin package?
+##### ビルドインパッケージで制約を定義しないのはなぜですか？
 
-_Instead of writing out type lists, use names like_
-_`constraints.Arithmetic` and `constraints.Comparable`._
+_型リストを書き出す代わりに、`constraints.Arithmetic`や`constraints.Comparable`のような名前を使います。_
 
-Listing all the possible combinations of types gets rather lengthy.
-It also introduces a new set of names that not only the writer of
-generic code, but, more importantly, the reader, must remember.
-One of the driving goals of this design is to introduce as few new
-names as possible.
-In this design we introduce only one new predeclared name.
+すべての可能な型の組み合わせをリストアップするのは、かなり長くなります。
+また、ジェネリクスコードを書く人だけでなく、もっと重要なことに、読み手が覚えておかなければならない新しい名前のセットを導入することになります。
+この設計の目的の一つは、新しい名前をできるだけ少なくすることです。
+このデザインでは、新たに宣言された名前を1つだけ導入します。
 
-We expect that if people find such names useful, we can introduce a
-package `constraints` that defines the useful names in the form of
-constraints that can be used by other types and functions and embedded
-in other constraints.
-That will define the most useful names in the standard library while
-giving programmers the flexibility to use other combinations of types
-where appropriate.
+人々がそのような名前が便利だと感じれば、他の型や関数で使用でき、他の制約に埋め込まれた制約の形で便利な名前を定義するパッケージ`constraints`を導入することができると期待しています。
+これにより、標準ライブラリの中で最も有用な名前が定義され、プログラマは適切な場合には他の型の組み合わせを使用する柔軟性を持つことになります。
 
-##### Why not permit type assertions on values whose type is a type parameter?
+##### 型パラメータである値に対して型アサーションを許可しないのはなぜですか？
 
-In an earlier version of this design, we permitted using type
-assertions and type switches on variables whose type was a type
-parameter, or whose type was based on a type parameter.
-We removed this facility because it is always possible to convert a
-value of any type to the empty interface type, and then use a type
-assertion or type switch on that.
-Also, it was sometimes confusing that in a constraint with a type
-list, a type assertion or type switch would use the actual type
-argument, not the underlying type of the type argument (the difference
-is explained in the section on [identifying the matched predeclared
-type](#Identifying-the-matched-predeclared-type)).
+In an earlier version of this design, we permitted using type assertions and type switches on variables whose type was a type parameter, or whose type was based on a type parameter.
+We removed this facility because it is always possible to convert a value of any type to the empty interface type, and then use a type assertion or type switch on that.
+Also, it was sometimes confusing that in a constraint with a type list, a type assertion or type switch would use the actual type argument, not the underlying type of the type argument (the difference is explained in the section on [identifying the matched predeclared type](#Identifying-the-matched-predeclared-type)).
 
-#### Comparison with Java
+この設計の以前のバージョンでは、
+型が型パラメータである変数、
+または型が型パラメータに基づいている変数に対して、
+型アサーションや型スイッチを使用することを許可していました。
+この機能を削除したのは、任意の型の値を空のインタフェース型に変換して、
+その値に対して型アサーションや型スイッチを使用することが常に可能だからです。
+また、型リストを持つ制約では、型アサーションや型スイッチが、
+型引数の基礎となる型ではなく実際の型引数を使用することで混乱することがありました。
+(この違いについては、[一致した宣言済み型の識別](#一致した宣言済み型の識別) のセクションで説明しています)
+
+#### Javaとの比較
 
 Most complaints about Java generics center around type erasure.
 This design does not have type erasure.
-The reflection information for a generic type will include the full
-compile-time type information.
+The reflection information for a generic type will include the full compile-time type information.
 
-In Java type wildcards (`List<? extends Number>`, `List<? super
-Number>`) implement covariance and contravariance.
-These concepts are missing from Go, which makes generic types much
-simpler.
+In Java type wildcards (`List<? extends Number>`, `List<? super Number>`) implement covariance and contravariance.
+These concepts are missing from Go, which makes generic types much simpler.
 
-#### Comparison with C++
+Java ジェネリクスに対する不満の多くは、型の消去が中心です。
+この設計では型の消去はありません。
+ジェネリクス型の反映情報には、コンパイル時の完全な型情報が含まれます。
 
-C++ templates do not enforce any constraints on the type arguments
-(unless the concept proposal is adopted).
-This means that changing template code can accidentally break far-off
-instantiations.
-It also means that error messages are reported only at instantiation
-time, and can be deeply nested and difficult to understand.
-This design avoids these problems through explicit required
-constraints.
+Javaでは、型のワイルドカード(`List<? extends Number>`, `List<? super Number>`)は共分散と逆分散を実装しています。
+Goにはこれらの概念がないため、ジェネリクス型をよりシンプルにしています。
 
-C++ supports template metaprogramming, which can be thought of as
-ordinary programming done at compile time using a syntax that is
-completely different than that of non-template C++.
-This design has no similar feature.
-This saves considerable complexity while losing some power and run
-time efficiency.
+#### C++との比較
 
-C++ uses two-phase name lookup, in which some names are looked up in
-the context of the template definition, and some names are looked up
-in the context of the template instantiation.
-In this design all names are looked up at the point where they are
-written.
+C++のテンプレートは、型の引数に制約を課しません。（概念案が採用されていない限り）
+これは、テンプレートのコードを変更すると、
+誤って遠く離れたインスタンスが壊れてしまう可能性があることを意味します。
+また、エラーメッセージがインスタンス化時にのみ報告され、
+深く入れ子になって理解しづらくなる可能性があることを意味します。
+この設計では、明示的な必須制約によってこれらの問題を回避します。
 
-In practice, all C++ compilers compile each template at the point
-where it is instantiated.
-This can slow down compilation time.
-This design offers flexibility as to how to handle the compilation of
-generic functions.
+C++はテンプレート・メタプログラミングをサポートしています。
+これは、コンパイル時に非テンプレートC++とは全く異なる構文を使用して行われる通常のプログラミングと考えることができます。
+この設計には、同様の機能はありません。
+これにより、消費電力と実行時間の効率が失われる一方で、
+かなりの複雑さを節約することができます。
 
-#### Comparison with Rust
+C++では2段階の名前検索を使用しており、
+一部の名前はテンプレート定義のコンテキストで検索され、
+一部の名前はをテンプレートのインスタンス化のコンテキストで使用することができます。
+この設計では、すべての名前は記述された時点で検索されます。
 
-The generics described in this design are similar to generics in
-Rust.
+実際には、すべてのC++コンパイラは、テンプレートがインスタンス化された時点で各テンプレートをコンパイルします。
+このため、コンパイル時間が遅くなることがあります。
+このデザインでは、ジェネリクス関数のコンパイルをどのように処理するかについて柔軟性があります。
 
-One difference is that in Rust the association between a trait bound
-and a type must be defined explicitly, either in the crate that
-defines the trait bound or the crate that defines the type.
-In Go terms, this would mean that we would have to declare somewhere
-whether a type satisfied a constraint.
-Just as Go types can satisfy Go interfaces without an explicit
-declaration, in this design Go type arguments can satisfy a constraint
-without an explicit declaration.
+#### Rustとの比較
 
-Where this design uses type lists, the Rust standard library defines
-standard traits for operations like comparison.
-These standard traits are automatically implemented by Rust's
-primitive types, and can be implemented by user defined types as
-well.
-Rust provides a fairly extensive list of traits, at least 34, covering
-all of the operators.
+このデザインで記述されているジェネリクスは、Rustのジェネリクスに似ています。
 
-Rust supports type parameters on methods, which this design does not.
+1つの違いは、Rustでは、トレイト結合と型の関連付けは、トレイト結合を定義するトレイトか型を定義するトレイトの中で明示的に定義されなければならないということです。
+Goの用語では、型が制約を満たすかどうかをどこかで宣言しなければならないことになります。
+Goの型が明示的に宣言しなくてもGoのインターフェースを満たすことができるように、
+このデザインでは、Goの型の引数が明示的に宣言しなくても制約を満たすことができます。
+
+このデザインでは型リストを使用していますが、Rust標準ライブラリでは、比較などの操作のための標準的な特徴を定義しています。
+これらの標準トレイトは、Rustのプリミティブ型によって自動的に実装されますが、ユーザー定義型によっても実装することができます。
+Rustは、すべての演算子をカバーするトレイトのリストを提供しており、少なくとも34個のトレイトを提供しています。
+
+Rustはメソッドの型パラメータをサポートしていますが、このデザインではサポートしていません。
 
 ## Examples
 
