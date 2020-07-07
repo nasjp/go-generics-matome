@@ -1925,13 +1925,6 @@ _型リストを書き出す代わりに、`constraints.Arithmetic`や`constrain
 
 #### Javaとの比較
 
-Most complaints about Java generics center around type erasure.
-This design does not have type erasure.
-The reflection information for a generic type will include the full compile-time type information.
-
-In Java type wildcards (`List<? extends Number>`, `List<? super Number>`) implement covariance and contravariance.
-These concepts are missing from Go, which makes generic types much simpler.
-
 Java ジェネリクスに対する不満の多くは、型の消去が中心です。
 この設計では型の消去はありません。
 ジェネリクス型の反映情報には、コンパイル時の完全な型情報が含まれます。
