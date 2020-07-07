@@ -379,7 +379,7 @@ type List(type T) struct {
 	val  T
 }
 
-// この型は不正です。
+// この型は無効です。
 type P(type T1, T2) struct {
 	F *P(T2, T1) // (T1, T2)でなければなりません。
 }
@@ -449,11 +449,11 @@ func (s StringableVector(T)) String() string {
 スライスが空でないことを前提とした値のスライスの最小要素を返すこの単純な関数を考えてみましょう。
 
 ```Go
-// 不正
+// 無効
 func Smallest(type T)(s []T) T {
 	r := s[0] // スライスが空だとpanicが起こる
 	for _, v := range s[1:] {
-		if v < r { // 不正
+		if v < r { // 無効
 			r = v
 		}
 	}
@@ -1711,13 +1711,13 @@ var G = NewtonSqrt(MyFloat(64))
 ```Go
 // 値を src から dst にコピーし，変換しながらコピーします．
 // コピーされた項目の数を返します．
-// この実装は不正です。
+// この実装は無効です。
 func Copy(type T1, T2)(dst []T1, src []T2) int {
 	for i, x := range src {
 		if i > len(dst) {
 			return i
 		}
-		dst[i] = T1(x) // 不正
+		dst[i] = T1(x) // 無効
 	}
 	return len(src)
 }
